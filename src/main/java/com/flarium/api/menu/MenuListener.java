@@ -2,8 +2,8 @@ package com.flarium.api.menu;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 
 public class MenuListener implements Listener {
@@ -17,7 +17,7 @@ public class MenuListener implements Listener {
             return;
         }
 
-        if (event.getAction() == InventoryAction.COLLECT_TO_CURSOR) {
+        if (event.getAction() == org.bukkit.event.inventory.InventoryAction.COLLECT_TO_CURSOR) {
             event.setCancelled(true);
             return;
         }
@@ -32,6 +32,13 @@ public class MenuListener implements Listener {
     public void onDrag(InventoryDragEvent event) {
         if (event.getInventory().getHolder() instanceof MenuView) {
             event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (event.getInventory().getHolder() instanceof MenuView view) {
+            view.close();
         }
     }
 }

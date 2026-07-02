@@ -13,8 +13,8 @@ public abstract class PaginatedMenuView<T> extends MenuView {
     private List<T> paginatedItems;
     private int currentPage = 0;
 
-    public PaginatedMenuView(Player player, MenuLayout layout) {
-        super(player, layout);
+    public PaginatedMenuView(MenuManager menuManager, Player player, MenuLayout layout) {
+        super(menuManager, player, layout);
         this.listSlots = layout.listSlots();
     }
 

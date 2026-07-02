@@ -1,5 +1,6 @@
 package com.flarium.api.menu;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
@@ -11,15 +12,16 @@ import java.util.function.Consumer;
 
 public abstract class MenuView implements InventoryHolder {
 
+    protected final MenuManager menuManager;
     protected final Player player;
     protected final Inventory inventory;
     protected final Map<Integer, Consumer<InventoryClickEvent>> actions = new HashMap<>();
 
-    protected MenuView(Player player, MenuLayout layout) {
+    protected MenuView(MenuManager menuManager, Player player, MenuLayout layout) {
+        this.menuManager = menuManager;
         this.player = player;
-        this.inventory = org.bukkit.Bukkit.createInventory(this, layout.size(), layout.title());
+        this.inventory = Bukkit.createInventory(this, layout.size(), layout.title());
 
-        // Párosítjuk az itemet az actionnel a Layout alapján
         layout.items().forEach((slot, layoutItem) -> {
             inventory.setItem(slot, layoutItem.item());
             if (layoutItem.actionName() != null) {
@@ -31,7 +33,6 @@ public abstract class MenuView implements InventoryHolder {
         });
     }
 
-    // A pluginok implementálják ezt. A YAML string -> Java lambda fordítás.
     protected abstract Consumer<InventoryClickEvent> resolveAction(String actionName);
 
     public void handleClick(InventoryClickEvent event) {
@@ -43,6 +44,19 @@ public abstract class MenuView implements InventoryHolder {
 
     public void open() {
         player.openInventory(inventory);
+        menuManager.registerActiveMenu(this);
+    }
+
+    public void close() {
+        menuManager.unregisterActiveMenu(this);
+    }
+
+    public void tick() {
+        // Override in subclasses for dynamic updates
+    }
+
+    public Player getPlayer() {
+        return player;
     }
 
     @Override
