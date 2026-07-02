@@ -69,7 +69,12 @@ public abstract class AbstractProfileManager<V> implements Listener {
         for (UUID uuid : keys) {
             saveAndInvalidate(uuid);
         }
-        CompletableFuture.allOf(pendingSaves.toArray(new CompletableFuture[0])).join();
+
+        try {
+            CompletableFuture.allOf(pendingSaves.toArray(new CompletableFuture[0])).get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            plugin.getLogger().severe("Profile save timeout on shutdown: " + e.getMessage());
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
