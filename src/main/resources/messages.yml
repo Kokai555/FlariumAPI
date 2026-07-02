@@ -1,0 +1,10 @@
+general:
+  reload: "{prefix} <white>A plugin sikeresen újratöltve! <#6CAAD3>({time}ms</#6CAAD3>)"
+
+error:
+  no-permission: "{prefix} <white>Nincs jogod ehhez a parancshoz!"
+
+help:
+  commands-list:
+    - "{prefix}"
+    - "<dark_gray>▪ <gray>Használat: <#6CAAD3>/flarium reload"

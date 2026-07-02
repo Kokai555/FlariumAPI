@@ -1,0 +1,13 @@
+prefix: "<gradient:#2E86C1:#6CAAD3><b>FlariumAPI</b></gradient> <dark_gray>→"
+
+database:
+  # Ha üresen hagyod, lokális SQLite (database.db) lesz használva.
+  # Ha MySQL-t akarsz, írd át: "MYSQL"-re.
+  type: ""
+
+  settings:
+    address: 127.0.0.1
+    port: 3306
+    database: admin
+    username: admin
+    password: 'admin'
