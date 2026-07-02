@@ -38,7 +38,7 @@ public class HologramManager {
                 pdcManager.set(stand, "hologram_id", new UUIDDataType(), hologramId);
             });
 
-            Hologram hologram = new Hologram(anchor);
+            Hologram hologram = new Hologram(scheduler, anchor);
             holograms.put(hologramId, hologram);
             future.complete(hologram);
         });

@@ -5,7 +5,7 @@ main: com.flarium.api.FlariumAPI
 api-version: '1.21.8'
 load: POSTWORLD
 
-authors: [Flarium Studios]
+authors: Flarium Studios
 website: https://flarium-studios.com
 
 softdepend: [PlaceholderAPI, FastAsyncWorldEdit, WorldEdit]
