@@ -1,33 +1,43 @@
 package com.flarium.api.hologram;
 
+import com.flarium.api.scheduler.Scheduler;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.TextDisplay;
 
-public class TextLine implements HologramLine {
+public class TextLine extends AbstractHologramLine {
 
-    private TextDisplay display;
-    private final Component text;
+    private Component text;
+    private Color backgroundColor = Color.fromARGB(0, 0, 0, 0);
+    private boolean shadow = false;
+    private TextDisplay.TextAlignment alignment = TextDisplay.TextAlignment.CENTER;
+    private int lineWidth = -1;
+    private byte opacity = -1;
 
-    public TextLine(Component text) {
+    public TextLine(Scheduler scheduler, Component text) {
+        super(scheduler);
         this.text = text;
     }
 
     @Override
     public void spawn(Location location) {
-        this.display = location.getWorld().spawn(location, TextDisplay.class, d -> {
-            d.setBillboard(Display.Billboard.CENTER);
-            d.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+        TextDisplay display = location.getWorld().spawn(location, TextDisplay.class, d -> {
+            applyDisplayProperties(d);
             d.text(text);
+            d.setBackgroundColor(backgroundColor);
+            d.setShadow(shadow);
+            d.setAlignment(alignment);
+            if (lineWidth != -1) d.setLineWidth(lineWidth);
+            if (opacity != -1) d.setTextOpacity(opacity);
         });
+        setEntity(display);
     }
 
     @Override
     public void despawn() {
-        if (display != null && !display.isDead()) display.remove();
+        if (getEntity() != null && !getEntity().isDead()) getEntity().remove();
     }
 
     @Override
@@ -35,12 +45,51 @@ public class TextLine implements HologramLine {
         return 0.3f;
     }
 
-    @Override
-    public Entity getEntity() {
-        return display;
+    public TextLine text(Component text) {
+        this.text = text;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).text(text));
+        }
+        return this;
     }
 
-    public void setText(Component newText) {
-        if (display != null) display.text(newText);
+    public TextLine backgroundColor(Color color) {
+        this.backgroundColor = color;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setBackgroundColor(color));
+        }
+        return this;
+    }
+
+    public TextLine shadow(boolean shadow) {
+        this.shadow = shadow;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setShadow(shadow));
+        }
+        return this;
+    }
+
+    public TextLine alignment(TextDisplay.TextAlignment alignment) {
+        this.alignment = alignment;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setAlignment(alignment));
+        }
+        return this;
+    }
+
+    public TextLine lineWidth(int lineWidth) {
+        this.lineWidth = lineWidth;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setLineWidth(lineWidth));
+        }
+        return this;
+    }
+
+    public TextLine opacity(byte opacity) {
+        this.opacity = opacity;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setTextOpacity(opacity));
+        }
+        return this;
     }
 }

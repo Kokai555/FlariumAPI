@@ -1,38 +1,42 @@
 package com.flarium.api.hologram;
 
+import com.flarium.api.scheduler.Scheduler;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
-public class ItemLine implements HologramLine {
+public class ItemLine extends AbstractHologramLine {
 
-    private ItemDisplay display;
-    private final ItemStack item;
+    private ItemStack item;
 
-    public ItemLine(ItemStack item) {
+    public ItemLine(Scheduler scheduler, ItemStack item) {
+        super(scheduler);
         this.item = item;
     }
 
     @Override
     public void spawn(Location location) {
-        this.display = location.getWorld().spawn(location, ItemDisplay.class, d -> {
+        ItemDisplay display = location.getWorld().spawn(location, ItemDisplay.class, d -> {
+            applyDisplayProperties(d);
             d.setItemStack(item);
-            d.setBillboard(Display.Billboard.CENTER);
+            // Alapból egy picit lejjebb toljuk, hogy középen legyen
             d.setTransformation(new Transformation(
-                    new org.joml.Vector3f(0, -0.5f, 0),
-                    new org.joml.Quaternionf(),
-                    new org.joml.Vector3f(1, 1, 1),
-                    new org.joml.Quaternionf()
+                    new Vector3f(0, -0.25f, 0),
+                    new Quaternionf(),
+                    new Vector3f(1, 1, 1),
+                    new Quaternionf()
             ));
         });
+        setEntity(display);
     }
 
     @Override
     public void despawn() {
-        if (display != null && !display.isDead()) display.remove();
+        if (getEntity() != null && !getEntity().isDead()) getEntity().remove();
     }
 
     @Override
@@ -40,8 +44,11 @@ public class ItemLine implements HologramLine {
         return 0.5f;
     }
 
-    @Override
-    public Entity getEntity() {
-        return display;
+    public ItemLine item(ItemStack item) {
+        this.item = item;
+        if (getEntity() != null && getEntity().isValid()) {
+            scheduler.runForEntity(getEntity(), () -> ((ItemDisplay) getEntity()).setItemStack(item));
+        }
+        return this;
     }
 }
