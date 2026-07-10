@@ -5,6 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -20,16 +21,20 @@ public class Hologram {
     private final Plugin plugin;
     private final Scheduler scheduler;
     private final ArmorStand anchor;
+    private final Interaction interaction;
     private final List<HologramLine> lines = new ArrayList<>();
     private Consumer<Player> clickAction;
 
     private RenderMode renderMode = RenderMode.ALL;
     private final Set<UUID> viewers = ConcurrentHashMap.newKeySet();
 
-    public Hologram(Plugin plugin, Scheduler scheduler, ArmorStand anchor) {
+    public Hologram(Plugin plugin, Scheduler scheduler, ArmorStand anchor, Interaction interaction) {
         this.plugin = plugin;
         this.scheduler = scheduler;
         this.anchor = anchor;
+        this.interaction = interaction;
+
+        scheduler.runForEntity(anchor, () -> anchor.addPassenger(interaction));
     }
 
     public void addLine(HologramLine line) {
@@ -76,11 +81,13 @@ public class Hologram {
 
                 if (shouldSee) {
                     player.showEntity(plugin, anchor);
+                    player.showEntity(plugin, interaction);
                     for (HologramLine line : lines) {
                         if (line.getEntity() != null) player.showEntity(plugin, line.getEntity());
                     }
                 } else {
                     player.hideEntity(plugin, anchor);
+                    player.hideEntity(plugin, interaction);
                     for (HologramLine line : lines) {
                         if (line.getEntity() != null) player.hideEntity(plugin, line.getEntity());
                     }
@@ -108,6 +115,11 @@ public class Hologram {
 
                 currentY += line.getHeight() / 2;
             }
+
+            if (interaction != null && !interaction.isDead()) {
+                interaction.setInteractionHeight(Math.max(0.5f, currentY));
+                interaction.setInteractionWidth(2.0f);
+            }
         });
     }
 
@@ -129,6 +141,7 @@ public class Hologram {
         scheduler.runForEntity(anchor, () -> {
             lines.forEach(HologramLine::despawn);
             lines.clear();
+            if (interaction != null && !interaction.isDead()) interaction.remove();
             if (anchor != null && !anchor.isDead()) anchor.remove();
         });
     }

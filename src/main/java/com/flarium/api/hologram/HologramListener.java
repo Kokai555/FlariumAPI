@@ -5,6 +5,7 @@ import com.flarium.api.data.UUIDDataType;
 import com.flarium.api.scheduler.Scheduler;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -31,7 +32,7 @@ public class HologramListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            if (entity instanceof ArmorStand || entity instanceof org.bukkit.entity.Display) {
+            if (entity instanceof ArmorStand || entity instanceof org.bukkit.entity.Display || entity instanceof Interaction) {
                 UUID hologramId = pdcManager.get(entity, "hologram_id", new UUIDDataType());
                 if (hologramId != null && hologramManager.getHologram(hologramId) == null) {
                     scheduler.runAtLocation(entity.getLocation(), entity::remove);
@@ -50,9 +51,10 @@ public class HologramListener implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof ArmorStand stand)) return;
+        Entity clicked = event.getRightClicked();
+        if (!(clicked instanceof ArmorStand) && !(clicked instanceof Interaction)) return;
 
-        UUID hologramId = pdcManager.get(stand, "hologram_id", new UUIDDataType());
+        UUID hologramId = pdcManager.get(clicked, "hologram_id", new UUIDDataType());
         if (hologramId == null) return;
 
         Hologram hologram = hologramManager.getHologram(hologramId);
@@ -64,10 +66,11 @@ public class HologramListener implements Listener {
 
     @EventHandler
     public void onAttack(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof ArmorStand stand)) return;
+        Entity damaged = event.getEntity();
+        if (!(damaged instanceof ArmorStand) && !(damaged instanceof Interaction)) return;
         if (!(event.getDamager() instanceof Player player)) return;
 
-        UUID hologramId = pdcManager.get(stand, "hologram_id", new UUIDDataType());
+        UUID hologramId = pdcManager.get(damaged, "hologram_id", new UUIDDataType());
         if (hologramId == null) return;
 
         Hologram hologram = hologramManager.getHologram(hologramId);

@@ -5,7 +5,6 @@ import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.util.Transformation;
 import org.jetbrains.annotations.Nullable;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public abstract class AbstractHologramLine implements HologramLine {
@@ -16,7 +15,6 @@ public abstract class AbstractHologramLine implements HologramLine {
 
     private Vector3f scale = new Vector3f(1, 1, 1);
     private Display.Billboard billboard = Display.Billboard.CENTER;
-    private boolean seeThrough = false;
 
     protected AbstractHologramLine(Scheduler scheduler) {
         this.scheduler = scheduler;
@@ -47,17 +45,8 @@ public abstract class AbstractHologramLine implements HologramLine {
         return this;
     }
 
-    public AbstractHologramLine seeThrough(boolean seeThrough) {
-        this.seeThrough = seeThrough;
-        if (entity != null && entity.isValid()) {
-            scheduler.runForEntity(entity, () -> ((Display) entity).setSeeThrough(seeThrough));
-        }
-        return this;
-    }
-
     protected void applyDisplayProperties(Display display) {
         display.setBillboard(billboard);
-        display.setSeeThrough(seeThrough);
         updateTransformation(display);
     }
 

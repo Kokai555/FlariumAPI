@@ -5,6 +5,7 @@ import com.flarium.api.data.UUIDDataType;
 import com.flarium.api.scheduler.Scheduler;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Interaction;
 import org.bukkit.plugin.Plugin;
 
 import java.util.UUID;
@@ -38,7 +39,14 @@ public class HologramManager {
                 pdcManager.set(stand, "hologram_id", new UUIDDataType(), hologramId);
             });
 
-            Hologram hologram = new Hologram(plugin, scheduler, anchor);
+            Interaction interaction = location.getWorld().spawn(location, Interaction.class, inter -> {
+                inter.setInteractionWidth(1.0f);
+                inter.setInteractionHeight(1.0f);
+                inter.setResponsive(true);
+                pdcManager.set(inter, "hologram_id", new UUIDDataType(), hologramId);
+            });
+
+            Hologram hologram = new Hologram(plugin, scheduler, anchor, interaction);
             holograms.put(hologramId, hologram);
             future.complete(hologram);
         });
@@ -46,12 +54,12 @@ public class HologramManager {
         return future;
     }
 
-    public java.util.Collection<Hologram> getHolograms() {
-        return holograms.values();
-    }
-
     public Hologram getHologram(UUID uuid) {
         return holograms.get(uuid);
+    }
+
+    public java.util.Collection<Hologram> getHolograms() {
+        return holograms.values();
     }
 
     public void removeHologram(UUID uuid) {

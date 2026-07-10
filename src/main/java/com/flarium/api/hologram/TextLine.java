@@ -4,14 +4,12 @@ import com.flarium.api.scheduler.Scheduler;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Color;
 import org.bukkit.Location;
-import org.bukkit.entity.Display;
 import org.bukkit.entity.TextDisplay;
 
 public class TextLine extends AbstractHologramLine {
 
     private Component text;
     private Color backgroundColor = Color.fromARGB(0, 0, 0, 0);
-    private boolean shadow = false;
     private TextDisplay.TextAlignment alignment = TextDisplay.TextAlignment.CENTER;
     private int lineWidth = -1;
     private byte opacity = -1;
@@ -27,7 +25,6 @@ public class TextLine extends AbstractHologramLine {
             applyDisplayProperties(d);
             d.text(text);
             d.setBackgroundColor(backgroundColor);
-            d.setShadow(shadow);
             d.setAlignment(alignment);
             if (lineWidth != -1) d.setLineWidth(lineWidth);
             if (opacity != -1) d.setTextOpacity(opacity);
@@ -57,14 +54,6 @@ public class TextLine extends AbstractHologramLine {
         this.backgroundColor = color;
         if (getEntity() != null && getEntity().isValid()) {
             scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setBackgroundColor(color));
-        }
-        return this;
-    }
-
-    public TextLine shadow(boolean shadow) {
-        this.shadow = shadow;
-        if (getEntity() != null && getEntity().isValid()) {
-            scheduler.runForEntity(getEntity(), () -> ((TextDisplay) getEntity()).setShadow(shadow));
         }
         return this;
     }
