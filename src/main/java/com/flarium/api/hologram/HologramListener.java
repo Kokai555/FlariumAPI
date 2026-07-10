@@ -10,8 +10,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 
+import java.time.Duration;
 import java.util.UUID;
 
 public class HologramListener implements Listener {
@@ -36,6 +38,14 @@ public class HologramListener implements Listener {
                 }
             }
         }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        scheduler.runGlobalDelayed(() -> {
+            hologramManager.getHolograms().forEach(hologram -> hologram.updateVisibility());
+        }, Duration.ofSeconds(1));
     }
 
     @EventHandler

@@ -1,22 +1,33 @@
 package com.flarium.api.hologram;
 
 import com.flarium.api.scheduler.Scheduler;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public class Hologram {
 
+    private final Plugin plugin;
     private final Scheduler scheduler;
     private final ArmorStand anchor;
     private final List<HologramLine> lines = new ArrayList<>();
-    private Consumer<org.bukkit.entity.Player> clickAction;
+    private Consumer<Player> clickAction;
 
-    public Hologram(Scheduler scheduler, ArmorStand anchor) {
+    private RenderMode renderMode = RenderMode.ALL;
+    private final Set<UUID> viewers = ConcurrentHashMap.newKeySet();
+
+    public Hologram(Plugin plugin, Scheduler scheduler, ArmorStand anchor) {
+        this.plugin = plugin;
         this.scheduler = scheduler;
         this.anchor = anchor;
     }
@@ -24,14 +35,58 @@ public class Hologram {
     public void addLine(HologramLine line) {
         lines.add(line);
         recalculateOffsets();
+        updateVisibility();
     }
 
     public void removeLine(int index) {
         if (index < 0 || index >= lines.size()) return;
         HologramLine line = lines.remove(index);
-
         scheduler.runForEntity(anchor, line::despawn);
         recalculateOffsets();
+    }
+
+    public void setRenderMode(RenderMode mode) {
+        this.renderMode = mode;
+        updateVisibility();
+    }
+
+    public void addViewer(UUID uuid) {
+        viewers.add(uuid);
+        updateVisibility();
+    }
+
+    public void removeViewer(UUID uuid) {
+        viewers.remove(uuid);
+        updateVisibility();
+    }
+
+    public void updateVisibility() {
+        scheduler.runForEntity(anchor, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                boolean shouldSee = false;
+                switch (renderMode) {
+                    case ALL -> shouldSee = true;
+                    case NONE -> shouldSee = false;
+                    case VIEWER_LIST -> shouldSee = viewers.contains(player.getUniqueId());
+                    case NOT_ATTACHED_PLAYER -> {
+                        Entity vehicle = anchor.getVehicle();
+                        shouldSee = !(vehicle instanceof Player attachedPlayer && attachedPlayer.getUniqueId().equals(player.getUniqueId()));
+                    }
+                }
+
+                if (shouldSee) {
+                    player.showEntity(plugin, anchor);
+                    for (HologramLine line : lines) {
+                        if (line.getEntity() != null) player.showEntity(plugin, line.getEntity());
+                    }
+                } else {
+                    player.hideEntity(plugin, anchor);
+                    for (HologramLine line : lines) {
+                        if (line.getEntity() != null) player.hideEntity(plugin, line.getEntity());
+                    }
+                }
+            }
+        });
     }
 
     private void recalculateOffsets() {
@@ -56,11 +111,11 @@ public class Hologram {
         });
     }
 
-    public void setClickAction(Consumer<org.bukkit.entity.Player> action) {
+    public void setClickAction(Consumer<Player> action) {
         this.clickAction = action;
     }
 
-    public void handleClick(org.bukkit.entity.Player player) {
+    public void handleClick(Player player) {
         if (clickAction != null) {
             clickAction.accept(player);
         }

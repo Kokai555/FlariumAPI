@@ -2,6 +2,7 @@ plugins {
     id("java-library")
     id("xyz.jpenilla.run-paper") version "3.0.2"
     id("com.gradleup.shadow") version "9.4.3"
+    id("maven-publish") // Ezt a sort kell hozzáadni
 }
 
 repositories {
@@ -26,6 +27,20 @@ dependencies {
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+group = "com.flarium"
+version = "1.0"
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+            groupId = "com.flarium"
+            artifactId = "flarium-api"
+            version = "1.0"
+        }
+    }
 }
 
 tasks {
