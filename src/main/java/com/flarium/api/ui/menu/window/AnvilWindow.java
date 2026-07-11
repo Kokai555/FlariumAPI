@@ -11,42 +11,37 @@ import java.util.function.Consumer;
 
 public class AnvilWindow extends AbstractWindow {
 
-    private final Consumer<String> callback;
+    private Consumer<String> renameHandler;
+    private Consumer<String> confirmHandler;
 
-    public AnvilWindow(Player player, Gui gui, String title, ItemStack inputItem, Consumer<String> callback) {
+    public AnvilWindow(Player player, Gui gui, String title) {
         super(player, gui, InventoryType.ANVIL, title);
-        this.callback = callback;
+    }
 
-        if (inputItem != null) {
-            this.inventory.setItem(0, inputItem);
+    public void setRenameHandler(Consumer<String> renameHandler) {
+        this.renameHandler = renameHandler;
+    }
+
+    public void setConfirmHandler(Consumer<String> confirmHandler) {
+        this.confirmHandler = confirmHandler;
+    }
+
+    public void handleRename(String text) {
+        if (renameHandler != null) {
+            renameHandler.accept(text);
         }
     }
 
     @Override
-    public void open() {
-        player.openInventory(inventory);
-    }
-
-    @Override
-    public void close() {
-        player.closeInventory();
-    }
-
-    @Override
-    public void updateContent() {
-    }
-
-    @Override
     public void handleClick(InventoryClickEvent event) {
-        event.setCancelled(true);
+        super.handleClick(event);
 
-        if (event.getRawSlot() == 2) {
+        if (event.getRawSlot() == 2 && confirmHandler != null) {
             ItemStack result = event.getCurrentItem();
             if (result != null && result.hasItemMeta()) {
                 String input = PlainTextComponentSerializer.plainText().serialize(result.displayName());
-                callback.accept(input);
+                confirmHandler.accept(input);
             }
-            close();
         }
     }
 }

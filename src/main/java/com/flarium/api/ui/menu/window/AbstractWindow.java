@@ -12,6 +12,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.InventoryView;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,6 +24,9 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
     protected final Gui gui;
     protected Inventory inventory;
     private Task tickTask;
+
+    private boolean handlesBottomInventory = false;
+    private ItemStack[] playerInventoryBackup = null;
 
     public AbstractWindow(Player player, Gui gui, int size, String title) {
         this.player = player;
@@ -38,8 +42,14 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
 
     @Override
     public void open() {
-        updateContent();
+        this.handlesBottomInventory = gui.getSize() > inventory.getSize();
+
+        if (handlesBottomInventory) {
+            this.playerInventoryBackup = player.getInventory().getContents().clone();
+        }
+
         player.openInventory(inventory);
+        updateContent();
     }
 
     @Override
@@ -48,53 +58,60 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
             tickTask.cancel();
             tickTask = null;
         }
+
+        if (handlesBottomInventory && playerInventoryBackup != null) {
+            player.getInventory().setContents(playerInventoryBackup);
+            player.updateInventory();
+        }
+
         player.closeInventory();
     }
 
     @Override
     public void updateContent() {
-        if (gui == null || inventory.getType() == InventoryType.ANVIL) return;
+        InventoryView view = player.getOpenInventory();
+        if (view.getTopInventory().getHolder() != this) return;
 
         ItemStack[] content = gui.getContent();
         for (int i = 0; i < content.length; i++) {
-            ItemStack current = inventory.getItem(i);
+            if (i >= view.countSlots()) break;
+
+            ItemStack current = view.getItem(i);
             ItemStack newItem = content[i];
 
             if (current == null && newItem == null) continue;
             if (current != null && current.equals(newItem)) continue;
 
-            inventory.setItem(i, newItem);
+            view.setItem(i, newItem);
         }
     }
 
     public void startTicking(Duration period) {
         if (tickTask != null) tickTask.cancel();
         tickTask = FlariumAPI.getInstance().getScheduler().runForEntityTimer(player, () -> {
-            if (gui != null) gui.tick();
+            gui.tick();
             updateContent();
         }, Duration.ZERO, period);
     }
 
     @Override
-    public @NotNull Inventory getInventory() {
-        return inventory;
-    }
-
+    public @NotNull Inventory getInventory() { return inventory; }
     @Override
     public Gui getGui() { return gui; }
-
     @Override
     public Player getPlayer() { return player; }
 
     public void handleClick(InventoryClickEvent event) {
-        event.setCancelled(true);
-        if (event.getClickedInventory() == null) return;
+        int rawSlot = event.getRawSlot();
 
-        int slot = event.getRawSlot();
-        Item item = gui.getItem(slot);
-
-        if (item != null) {
-            item.handleClick(new ItemClickEvent(player, event, gui, this));
+        if (rawSlot >= 0 && rawSlot < gui.getSize()) {
+            event.setCancelled(true);
+            Item item = gui.getItem(rawSlot);
+            if (item != null) {
+                item.handleClick(new ItemClickEvent(player, event, gui, this));
+            }
+        } else {
+            if (event.isShiftClick()) event.setCancelled(true);
         }
     }
 }
