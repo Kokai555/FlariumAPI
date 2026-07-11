@@ -19,7 +19,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
 
     protected final Player player;
     protected final Gui gui;
-    protected final Inventory inventory;
+    protected Inventory inventory;
     private Task tickTask;
 
     public AbstractWindow(Player player, Gui gui, int size, String title) {
