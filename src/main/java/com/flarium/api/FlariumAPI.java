@@ -1,9 +1,10 @@
 package com.flarium.api;
 
-import com.flarium.api.data.PDCManager;
-import com.flarium.api.hologram.HologramListener;
-import com.flarium.api.hologram.HologramManager;
-import com.flarium.api.scheduler.Scheduler;
+import com.flarium.api.core.scheduler.Scheduler;
+import com.flarium.api.data.pdc.PDCManager;
+import com.flarium.api.ui.hologram.HologramManager;
+import com.flarium.api.ui.hologram.impl.FlariumHologramManager;
+import com.flarium.api.ui.hologram.impl.HologramListener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class FlariumAPI extends JavaPlugin {
@@ -20,7 +21,8 @@ public class FlariumAPI extends JavaPlugin {
 
         this.scheduler = new Scheduler(this);
         this.pdcManager = new PDCManager(this);
-        this.hologramManager = new HologramManager(this, scheduler, pdcManager);
+        // Interfész deklarálva, impl példányosítva
+        this.hologramManager = new FlariumHologramManager(this, scheduler, pdcManager);
 
         getServer().getPluginManager().registerEvents(new HologramListener(hologramManager, pdcManager, scheduler), this);
 

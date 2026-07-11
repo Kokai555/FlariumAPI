@@ -1,6 +1,6 @@
 package com.flarium.api.hook.worldedit;
 
-import com.flarium.api.scheduler.Scheduler;
+import com.flarium.api.core.scheduler.Scheduler;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.plugin.Plugin;
