@@ -34,10 +34,6 @@ public class AnvilWindow extends AbstractWindow {
 
     @Override
     public void close() {
-        if (tickTask != null) {
-            tickTask.cancel();
-            tickTask = null;
-        }
         player.closeInventory();
     }
 
