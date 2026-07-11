@@ -5,9 +5,11 @@ import com.flarium.api.core.scheduler.Task;
 import com.flarium.api.ui.menu.event.ItemClickEvent;
 import com.flarium.api.ui.menu.gui.Gui;
 import com.flarium.api.ui.menu.item.Item;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -25,7 +27,13 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
     public AbstractWindow(Player player, Gui gui, int size, String title) {
         this.player = player;
         this.gui = gui;
-        this.inventory = Bukkit.createInventory(this, size, net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(title));
+        this.inventory = Bukkit.createInventory(this, size, MiniMessage.miniMessage().deserialize(title));
+    }
+
+    public AbstractWindow(Player player, Gui gui, InventoryType type, String title) {
+        this.player = player;
+        this.gui = gui;
+        this.inventory = Bukkit.createInventory(this, type, MiniMessage.miniMessage().deserialize(title));
     }
 
     @Override
@@ -45,6 +53,8 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
 
     @Override
     public void updateContent() {
+        if (gui == null || inventory.getType() == InventoryType.ANVIL) return;
+
         ItemStack[] content = gui.getContent();
         for (int i = 0; i < content.length; i++) {
             ItemStack current = inventory.getItem(i);
@@ -60,7 +70,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
     public void startTicking(Duration period) {
         if (tickTask != null) tickTask.cancel();
         tickTask = FlariumAPI.getInstance().getScheduler().runForEntityTimer(player, () -> {
-            gui.tick();
+            if (gui != null) gui.tick();
             updateContent();
         }, Duration.ZERO, period);
     }
