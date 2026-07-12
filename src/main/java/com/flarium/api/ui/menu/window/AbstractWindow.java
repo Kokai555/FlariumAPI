@@ -17,8 +17,12 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Duration;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class AbstractWindow implements Window, InventoryHolder {
+
+    public static final Set<AbstractWindow> ACTIVE_WINDOWS = ConcurrentHashMap.newKeySet();
 
     protected final Player player;
     protected final Gui gui;
@@ -50,6 +54,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
 
         player.openInventory(inventory);
         updateContent();
+        ACTIVE_WINDOWS.add(this);
     }
 
     @Override
@@ -65,6 +70,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
         }
 
         player.closeInventory();
+        ACTIVE_WINDOWS.remove(this);
     }
 
     @Override

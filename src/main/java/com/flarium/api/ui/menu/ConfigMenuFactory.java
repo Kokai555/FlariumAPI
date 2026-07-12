@@ -1,6 +1,6 @@
 package com.flarium.api.ui.menu;
 
-import com.flarium.api.item.ItemBuilder;
+import com.flarium.api.ui.item.ItemBuilder;
 import com.flarium.api.ui.menu.event.ItemClickEvent;
 import com.flarium.api.ui.menu.gui.NormalGui;
 import com.flarium.api.ui.menu.item.Item;

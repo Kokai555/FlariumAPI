@@ -19,6 +19,14 @@ public class Structure {
             this.lines = new String[0];
             return;
         }
+
+        int expectedLength = lines[0].length();
+        for (String row : lines) {
+            if (row.length() != expectedLength) {
+                throw new IllegalArgumentException("Structure rows must have the same length!");
+            }
+        }
+
         this.height = lines.length;
         this.width = lines[0].length();
         this.lines = lines;

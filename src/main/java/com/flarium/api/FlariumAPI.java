@@ -31,6 +31,10 @@ public class FlariumAPI extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        for (com.flarium.api.ui.menu.window.AbstractWindow window : com.flarium.api.ui.menu.window.AbstractWindow.ACTIVE_WINDOWS) {
+            window.close();
+        }
+
         if (hologramManager != null) hologramManager.shutdown();
         if (scheduler != null) scheduler.shutdown();
         getLogger().info("FlariumAPI disabled!");
