@@ -6,6 +6,7 @@ import com.flarium.api.ui.menu.gui.NormalGui;
 import com.flarium.api.ui.menu.item.Item;
 import com.flarium.api.ui.menu.structure.Ingredient;
 import com.flarium.api.ui.menu.structure.Structure;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
@@ -35,8 +36,12 @@ public class ConfigMenuFactory {
                 String actionName = itemSection.getString("action", null);
 
                 Consumer<ItemClickEvent> action = null;
-                if (actionName != null && actions != null) {
-                    action = actions.get(actionName.toUpperCase());
+                if (actionName != null) {
+                    if (actions != null && actions.containsKey(actionName.toUpperCase())) {
+                        action = actions.get(actionName.toUpperCase());
+                    } else {
+                        Bukkit.getLogger().warning("[FlariumAPI] Warning: Unknown action key in menu config: " + actionName);
+                    }
                 }
 
                 Item menuItem = new ConfigurableItem(itemStack, action);

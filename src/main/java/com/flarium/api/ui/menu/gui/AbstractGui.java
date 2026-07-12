@@ -6,7 +6,6 @@ import com.flarium.api.ui.menu.structure.Structure;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -57,9 +56,15 @@ public abstract class AbstractGui implements Gui {
     public List<GuiModifier> getModifiers() { return modifiers; }
 
     @Override
-    public void tick() {}
+    public void tick() {
+    }
 
     public void applyStructure(Structure structure, Map<Character, Ingredient> ingredients) {
+        int structureSize = structure.getWidth() * structure.getHeight();
+        if (structureSize > getSize()) {
+            throw new IllegalArgumentException("Structure size (" + structureSize + ") exceeds Gui capacity (" + getSize() + ")!");
+        }
+
         for (Map.Entry<Character, Ingredient> entry : ingredients.entrySet()) {
             char c = entry.getKey();
             Ingredient ingredient = entry.getValue();

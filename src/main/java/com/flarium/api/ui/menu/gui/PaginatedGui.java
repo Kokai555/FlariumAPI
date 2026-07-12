@@ -18,13 +18,19 @@ public class PaginatedGui extends AbstractGui {
 
     public void setItems(List<Item> items) {
         this.paginatedItems = items;
-        this.currentPage = 0;
+        if (this.currentPage >= this.getMaxPages()) {
+            this.currentPage = Math.max(0, this.getMaxPages() - 1);
+        }
         renderPage();
     }
 
+    public int getMaxPages() {
+        if (listSlots.isEmpty()) return 1;
+        return (int) Math.ceil((double) paginatedItems.size() / listSlots.size());
+    }
+
     public void nextPage() {
-        int maxPages = (int) Math.ceil((double) paginatedItems.size() / listSlots.size());
-        if (currentPage < maxPages - 1) {
+        if (currentPage < getMaxPages() - 1) {
             currentPage++;
             renderPage();
         }
