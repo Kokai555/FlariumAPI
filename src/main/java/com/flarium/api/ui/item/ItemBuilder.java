@@ -5,13 +5,17 @@ import com.destroystokyo.paper.profile.ProfileProperty;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
+import org.bukkit.Color;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.LeatherArmorMeta;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
@@ -67,7 +71,23 @@ public class ItemBuilder {
 
     public ItemBuilder glow(boolean glow) {
         if (glow) {
-            meta.setEnchantmentGlintOverride(true);
+            meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
+        return this;
+    }
+
+    public ItemBuilder hideTooltip(boolean hide) {
+        meta.setHideTooltip(hide);
+        return this;
+    }
+
+    public ItemBuilder color(Color color) {
+        if (color == null) return this;
+        if (meta instanceof LeatherArmorMeta leatherMeta) {
+            leatherMeta.setColor(color);
+        } else if (meta instanceof PotionMeta potionMeta) {
+            potionMeta.setColor(color);
         }
         return this;
     }
@@ -115,8 +135,10 @@ public class ItemBuilder {
     public static ItemStack fromConfig(ConfigurationSection section) {
         if (section == null) return new ItemStack(Material.AIR);
 
-        String materialName = section.getString("material", "STONE").toUpperCase().replace("-", "_");
-        Material material = Material.matchMaterial(materialName);
+        String materialName = section.getString("material", "");
+        if (materialName.isEmpty()) return new ItemStack(Material.AIR);
+
+        Material material = Material.matchMaterial(materialName.toUpperCase().replace("-", "_"));
         if (material == null) {
             material = Material.STONE;
         }
@@ -127,7 +149,18 @@ public class ItemBuilder {
                 .lore(section.getStringList("lore"))
                 .customModelData(section.getInt("custom-model-data", 0))
                 .glow(section.getBoolean("glow", false))
+                .hideTooltip(section.getBoolean("hide-tooltip", false))
                 .unbreakable(section.getBoolean("unbreakable", false));
+
+        String colorHex = section.getString("color");
+        if (colorHex != null && !colorHex.isEmpty()) {
+            try {
+                String hex = colorHex.replace("#", "");
+                Color color = Color.fromRGB(Integer.parseInt(hex, 16));
+                builder.color(color);
+            } catch (Exception ignored) {
+            }
+        }
 
         if (material == Material.PLAYER_HEAD) {
             String texture = section.getString("skull-texture");
