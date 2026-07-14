@@ -2,10 +2,10 @@ package com.flarium.api.ui.menu.window;
 
 import com.flarium.api.FlariumAPI;
 import com.flarium.api.core.scheduler.Task;
+import com.flarium.api.core.util.ColorUtil;
 import com.flarium.api.ui.menu.event.ItemClickEvent;
 import com.flarium.api.ui.menu.gui.Gui;
 import com.flarium.api.ui.menu.item.Item;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -35,13 +35,13 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
     public AbstractWindow(Player player, Gui gui, int size, String title) {
         this.player = player;
         this.gui = gui;
-        this.inventory = Bukkit.createInventory(this, size, MiniMessage.miniMessage().deserialize(title));
+        this.inventory = Bukkit.createInventory(this, size, ColorUtil.format(title));
     }
 
     public AbstractWindow(Player player, Gui gui, InventoryType type, String title) {
         this.player = player;
         this.gui = gui;
-        this.inventory = Bukkit.createInventory(this, type, MiniMessage.miniMessage().deserialize(title));
+        this.inventory = Bukkit.createInventory(this, type, ColorUtil.format(title));
     }
 
     @Override

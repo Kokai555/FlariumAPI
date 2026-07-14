@@ -2,8 +2,7 @@ package com.flarium.api.ui.item;
 
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.destroystokyo.paper.profile.ProfileProperty;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
+import com.flarium.api.core.util.ColorUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Material;
@@ -20,13 +19,9 @@ import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class ItemBuilder {
-
-    private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
 
     private final ItemStack item;
     private final ItemMeta meta;
@@ -43,17 +38,13 @@ public class ItemBuilder {
 
     public ItemBuilder name(String miniMessage) {
         if (miniMessage == null || miniMessage.isEmpty()) return this;
-        meta.displayName(MINI_MESSAGE.deserialize(miniMessage));
+        meta.displayName(ColorUtil.format(miniMessage));
         return this;
     }
 
     public ItemBuilder lore(List<String> miniMessages) {
         if (miniMessages == null || miniMessages.isEmpty()) return this;
-        List<Component> lore = new ArrayList<>();
-        for (String line : miniMessages) {
-            lore.add(MINI_MESSAGE.deserialize(line));
-        }
-        meta.lore(lore);
+        meta.lore(ColorUtil.format(miniMessages));
         return this;
     }
 
@@ -113,7 +104,7 @@ public class ItemBuilder {
     public ItemBuilder skullTexture(String base64Texture) {
         if (base64Texture == null || base64Texture.isEmpty() || !(meta instanceof SkullMeta skullMeta)) return this;
 
-        PlayerProfile profile = Bukkit.createProfile(UUID.randomUUID(), "flarium_head");
+        PlayerProfile profile = Bukkit.createProfile(java.util.UUID.randomUUID(), "flarium_head");
         profile.setProperty(new ProfileProperty("textures", base64Texture));
         skullMeta.setPlayerProfile(profile);
         return this;
