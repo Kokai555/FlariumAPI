@@ -127,6 +127,16 @@ public class ItemBuilder {
         return this;
     }
 
+    public ItemBuilder enchant(Enchantment enchantment, int level) {
+        meta.addEnchant(enchantment, level, true);
+        return this;
+    }
+
+    public ItemBuilder flag(ItemFlag... flags) {
+        meta.addItemFlags(flags);
+        return this;
+    }
+
     public ItemStack build() {
         item.setItemMeta(meta);
         return item;
@@ -169,6 +179,26 @@ public class ItemBuilder {
             } else {
                 String owner = section.getString("skull-owner");
                 if (owner != null) builder.skullOwner(owner);
+            }
+        }
+
+        if (section.contains("enchants")) {
+            for (String enchantLine : section.getStringList("enchants")) {
+                String[] split = enchantLine.split(":");
+                Enchantment enchant = org.bukkit.Registry.ENCHANTMENT.get(org.bukkit.NamespacedKey.minecraft(split[0].toLowerCase()));
+                if (enchant != null) {
+                    int level = split.length > 1 ? Integer.parseInt(split[1]) : 1;
+                    builder.enchant(enchant, level);
+                }
+            }
+        }
+
+        if (section.contains("flags")) {
+            for (String flagName : section.getStringList("flags")) {
+                try {
+                    builder.flag(ItemFlag.valueOf(flagName.toUpperCase()));
+                } catch (IllegalArgumentException ignored) {
+                }
             }
         }
 
