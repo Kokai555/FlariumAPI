@@ -21,7 +21,6 @@ public class FlariumAPI extends JavaPlugin {
 
         this.scheduler = new Scheduler(this);
         this.pdcManager = new PDCManager(this);
-        // Interfész deklarálva, impl példányosítva
         this.hologramManager = new FlariumHologramManager(this, scheduler, pdcManager);
 
         getServer().getPluginManager().registerEvents(new HologramListener(hologramManager, pdcManager, scheduler), this);
