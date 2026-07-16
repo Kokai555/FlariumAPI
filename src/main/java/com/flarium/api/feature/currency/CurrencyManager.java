@@ -29,9 +29,9 @@ public class CurrencyManager {
                     currencySection.getString("display-format", "%amount%"),
                     currencySection.getBoolean("allow-decimals", false),
                     currencySection.getBoolean("works-offline", false),
-                    currencySection.getString("placeholder", "%vault_eco_balance%"),
-                    currencySection.getString("give-command", "eco give %player% %amount%"),
-                    currencySection.getString("take-command", "eco take %player% %amount%")
+                    currencySection.getString("options.placeholder", "%vault_eco_balance%"),
+                    currencySection.getString("options.give-command", "eco give %player% %amount%"),
+                    currencySection.getString("options.take-command", "eco take %player% %amount%")
             );
             currencies.put(key.toLowerCase(), currency);
         }
