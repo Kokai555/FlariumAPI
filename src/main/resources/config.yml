@@ -7,7 +7,7 @@ database:
 
   settings:
     address: 127.0.0.1
-    port: 3306
+    port: 330
     database: admin
     username: admin
     password: 'admin'
