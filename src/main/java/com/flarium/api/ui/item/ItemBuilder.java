@@ -113,8 +113,12 @@ public class ItemBuilder {
     public ItemBuilder skullOwner(String playerName) {
         if (playerName == null || playerName.isEmpty() || !(meta instanceof SkullMeta skullMeta)) return this;
 
-        OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
-        skullMeta.setOwningPlayer(offlinePlayer);
+        org.bukkit.OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayerIfCached(playerName);
+        if (offlinePlayer != null) {
+            skullMeta.setOwningPlayer(offlinePlayer);
+        } else {
+            Bukkit.getLogger().warning("Skull owner '" + playerName + "' not cached. Skipping blocking API call.");
+        }
         return this;
     }
 

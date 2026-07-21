@@ -20,7 +20,7 @@ public class ColorUtil {
         }
 
         Matcher hexMatcher = HEX_PATTERN.matcher(text);
-        StringBuffer hexBuffer = new StringBuffer();
+        StringBuilder hexBuffer = new StringBuilder();
         while (hexMatcher.find()) {
             hexMatcher.appendReplacement(hexBuffer, Matcher.quoteReplacement("<#" + hexMatcher.group(1) + ">"));
         }
