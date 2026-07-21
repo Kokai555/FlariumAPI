@@ -5,23 +5,25 @@ import java.util.Locale;
 
 public class NumberUtil {
 
-    private static final NumberFormat COMMA_FORMAT = NumberFormat.getNumberInstance(Locale.US);
-    private static final NumberFormat COMPACT_FORMAT = NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);
+    private static final ThreadLocal<NumberFormat> COMMA_FORMAT =
+            ThreadLocal.withInitial(() -> NumberFormat.getNumberInstance(Locale.US));
 
-    static {
-        COMMA_FORMAT.setGroupingUsed(true);
-        COMPACT_FORMAT.setMaximumFractionDigits(2);
-    }
+    private static final ThreadLocal<NumberFormat> COMPACT_FORMAT =
+            ThreadLocal.withInitial(() -> {
+                NumberFormat format = NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);
+                format.setMaximumFractionDigits(2);
+                return format;
+            });
 
     private NumberUtil() {
         throw new UnsupportedOperationException("Utility class");
     }
 
     public static String formatCommas(long number) {
-        return COMMA_FORMAT.format(number);
+        return COMMA_FORMAT.get().format(number);
     }
 
     public static String formatShort(double number) {
-        return COMPACT_FORMAT.format(number).replace("K", "k");
+        return COMPACT_FORMAT.get().format(number).replace("K", "k");
     }
 }

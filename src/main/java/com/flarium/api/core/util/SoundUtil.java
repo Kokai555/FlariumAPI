@@ -12,7 +12,7 @@ public class SoundUtil {
     public static void playSoundFromString(Player player, String format) {
         if (format == null || !format.startsWith("[SOUND]")) return;
 
-        String parsed = format.substring(8).trim();
+        String parsed = format.substring(7).trim();
         String[] parts = parsed.split("\\|");
         if (parts.length == 0 || parts[0].isEmpty()) return;
 
