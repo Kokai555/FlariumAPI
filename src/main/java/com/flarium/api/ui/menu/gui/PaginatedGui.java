@@ -3,6 +3,7 @@ package com.flarium.api.ui.menu.gui;
 import com.flarium.api.ui.menu.item.Item;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class PaginatedGui extends AbstractGui {
@@ -17,7 +18,7 @@ public class PaginatedGui extends AbstractGui {
     }
 
     public void setItems(List<Item> items) {
-        this.paginatedItems = items;
+        this.paginatedItems = items != null ? items : new ArrayList<>();
         if (this.currentPage >= this.getMaxPages()) {
             this.currentPage = Math.max(0, this.getMaxPages() - 1);
         }
@@ -26,7 +27,7 @@ public class PaginatedGui extends AbstractGui {
 
     public int getMaxPages() {
         if (listSlots.isEmpty()) return 1;
-        return (int) Math.ceil((double) paginatedItems.size() / listSlots.size());
+        return (int) Math.max(1, Math.ceil((double) paginatedItems.size() / listSlots.size()));
     }
 
     public void nextPage() {

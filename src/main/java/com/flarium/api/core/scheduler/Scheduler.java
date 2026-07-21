@@ -47,43 +47,35 @@ public class Scheduler {
     }
 
     public Task runAsyncDelayed(Runnable runnable, Duration delay) {
-        ScheduledTask task = Bukkit.getAsyncScheduler().runDelayed(plugin, t -> runnable.run(), delay.toMillis(), TimeUnit.MILLISECONDS);
-        return () -> task.cancel();
+        return wrapTimer(Bukkit.getAsyncScheduler().runDelayed(plugin, t -> runnable.run(), delay.toMillis(), TimeUnit.MILLISECONDS));
     }
 
     public Task runGlobalDelayed(Runnable runnable, Duration delay) {
-        ScheduledTask task = Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> runnable.run(), toTicks(delay));
-        return () -> task.cancel();
+        return wrapTimer(Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> runnable.run(), toTicks(delay)));
     }
 
     public Task runForEntityDelayed(Entity entity, Runnable runnable, Duration delay) {
-        ScheduledTask task = entity.getScheduler().runDelayed(plugin, t -> runnable.run(), null, toTicks(delay));
-        return () -> task.cancel();
+        return wrapTimer(entity.getScheduler().runDelayed(plugin, t -> runnable.run(), null, toTicks(delay)));
     }
 
     public Task runAtLocationDelayed(Location location, Runnable runnable, Duration delay) {
-        ScheduledTask task = Bukkit.getRegionScheduler().runDelayed(plugin, location, t -> runnable.run(), toTicks(delay));
-        return () -> task.cancel();
+        return wrapTimer(Bukkit.getRegionScheduler().runDelayed(plugin, location, t -> runnable.run(), toTicks(delay)));
     }
 
     public Task runAsyncTimer(Runnable runnable, Duration delay, Duration period) {
-        ScheduledTask task = Bukkit.getAsyncScheduler().runAtFixedRate(plugin, t -> runnable.run(), delay.toMillis(), period.toMillis(), TimeUnit.MILLISECONDS);
-        return wrapTimer(task);
+        return wrapTimer(Bukkit.getAsyncScheduler().runAtFixedRate(plugin, t -> runnable.run(), delay.toMillis(), period.toMillis(), TimeUnit.MILLISECONDS));
     }
 
     public Task runGlobalTimer(Runnable runnable, Duration delay, Duration period) {
-        ScheduledTask task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, t -> runnable.run(), toTicks(delay), toTicks(period));
-        return wrapTimer(task);
+        return wrapTimer(Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, t -> runnable.run(), toTicks(delay), toTicks(period)));
     }
 
     public Task runForEntityTimer(Entity entity, Runnable runnable, Duration delay, Duration period) {
-        ScheduledTask task = entity.getScheduler().runAtFixedRate(plugin, t -> runnable.run(), null, toTicks(delay), toTicks(period));
-        return wrapTimer(task);
+        return wrapTimer(entity.getScheduler().runAtFixedRate(plugin, t -> runnable.run(), null, toTicks(delay), toTicks(period)));
     }
 
     public Task runAtLocationTimer(Location location, Runnable runnable, Duration delay, Duration period) {
-        ScheduledTask task = Bukkit.getRegionScheduler().runAtFixedRate(plugin, location, t -> runnable.run(), toTicks(delay), toTicks(period));
-        return wrapTimer(task);
+        return wrapTimer(Bukkit.getRegionScheduler().runAtFixedRate(plugin, location, t -> runnable.run(), toTicks(delay), toTicks(period)));
     }
 
     public Executor async() {

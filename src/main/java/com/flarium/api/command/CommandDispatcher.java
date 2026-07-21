@@ -40,6 +40,7 @@ public class CommandDispatcher implements org.bukkit.command.CommandExecutor, or
             if (child == null) break;
 
             if (child.getPermission() != null && !sender.hasPermission(child.getPermission())) {
+                sender.sendMessage("You don't have permission to execute this command.");
                 return true;
             }
 
@@ -50,7 +51,6 @@ public class CommandDispatcher implements org.bukkit.command.CommandExecutor, or
         if (!current.getArguments().isEmpty()) {
             int requiredArgs = current.getArguments().size();
 
-            // QoL Validáció: Ellenőrizzük, hogy elég argumentumot adott-e meg
             if (context.getArgsLength() < requiredArgs) {
                 StringBuilder missing = new StringBuilder();
                 for (int i = context.getArgsLength(); i < requiredArgs; i++) {
@@ -65,6 +65,10 @@ public class CommandDispatcher implements org.bukkit.command.CommandExecutor, or
                 String input = context.getString(argIdx);
                 if (input != null) {
                     Object parsed = def.type().parse(input);
+                    if (parsed == null) {
+                        sender.sendMessage("Invalid value for argument: " + def.name());
+                        return true;
+                    }
                     context.setArgument(def.name(), parsed);
                 }
                 argIdx++;
@@ -78,8 +82,6 @@ public class CommandDispatcher implements org.bukkit.command.CommandExecutor, or
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, @NotNull String[] args) {
         CommandContext context = new CommandContext(sender, args, 0);
-
-        // Immutable List crash javítása: Új, módosítható ArrayList-be csomagoljuk
         List<String> options = new ArrayList<>(root.tabComplete(context));
 
         if (args.length > 0) {

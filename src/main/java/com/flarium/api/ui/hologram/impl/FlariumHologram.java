@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class FlariumHologram implements Hologram {
@@ -25,7 +26,7 @@ public class FlariumHologram implements Hologram {
     private final Scheduler scheduler;
     private final ArmorStand anchor;
     private final Interaction interaction;
-    private final List<HologramLine> lines = new ArrayList<>();
+    private final List<HologramLine> lines = new CopyOnWriteArrayList<>();
     private Consumer<Player> clickAction;
 
     private RenderMode renderMode = RenderMode.ALL;
@@ -77,16 +78,7 @@ public class FlariumHologram implements Hologram {
     public void updateVisibility() {
         scheduler.runForEntity(anchor, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
-                boolean shouldSee = false;
-                switch (renderMode) {
-                    case ALL -> shouldSee = true;
-                    case NONE -> shouldSee = false;
-                    case VIEWER_LIST -> shouldSee = viewers.contains(player.getUniqueId());
-                    case NOT_ATTACHED_PLAYER -> {
-                        Entity vehicle = anchor.getVehicle();
-                        shouldSee = !(vehicle instanceof Player attachedPlayer && attachedPlayer.getUniqueId().equals(player.getUniqueId()));
-                    }
-                }
+                boolean shouldSee = shouldSee(player);
 
                 if (shouldSee) {
                     player.showEntity(plugin, anchor);
@@ -103,6 +95,18 @@ public class FlariumHologram implements Hologram {
                 }
             }
         });
+    }
+
+    private boolean shouldSee(Player player) {
+        return switch (renderMode) {
+            case ALL -> true;
+            case NONE -> false;
+            case VIEWER_LIST -> viewers.contains(player.getUniqueId());
+            case NOT_ATTACHED_PLAYER -> {
+                Entity vehicle = anchor.getVehicle();
+                yield !(vehicle instanceof Player attachedPlayer && attachedPlayer.getUniqueId().equals(player.getUniqueId()));
+            }
+        };
     }
 
     private void recalculateOffsets() {

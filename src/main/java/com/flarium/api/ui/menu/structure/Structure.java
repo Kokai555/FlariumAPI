@@ -1,9 +1,6 @@
 package com.flarium.api.ui.menu.structure;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class Structure {
 
@@ -44,7 +41,7 @@ public class Structure {
     }
 
     public List<Integer> getSlots(char character) {
-        return charMap.getOrDefault(character, new ArrayList<>());
+        return charMap.getOrDefault(character, Collections.emptyList());
     }
 
     public int getWidth() { return width; }
