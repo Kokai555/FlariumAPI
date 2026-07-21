@@ -20,14 +20,14 @@ public class ItemLine extends AbstractHologramLine {
     @Override
     public void spawn(Location location) {
         ItemDisplay display = location.getWorld().spawn(location, ItemDisplay.class, d -> {
-            applyDisplayProperties(d);
             d.setItemStack(item);
-            // Alapból egy picit lejjebb toljuk, hogy középen legyen
+            applyDisplayProperties(d);
+            Transformation existing = d.getTransformation();
             d.setTransformation(new Transformation(
                     new Vector3f(0, -0.25f, 0),
-                    new Quaternionf(),
-                    new Vector3f(1, 1, 1),
-                    new Quaternionf()
+                    existing.getLeftRotation(),
+                    existing.getScale(),
+                    existing.getRightRotation()
             ));
         });
         setEntity(display);

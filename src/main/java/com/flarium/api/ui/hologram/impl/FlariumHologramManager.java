@@ -78,9 +78,9 @@ public class FlariumHologramManager implements HologramManager {
 
     @Override
     public void shutdown() {
-        holograms.values().forEach(hologram -> {
+        for (Hologram hologram : holograms.values()) {
             scheduler.runAtLocation(hologram.getAnchor().getLocation(), hologram::remove);
-        });
+        }
         holograms.clear();
     }
 }
