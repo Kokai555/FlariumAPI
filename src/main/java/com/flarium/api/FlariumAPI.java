@@ -5,7 +5,11 @@ import com.flarium.api.data.pdc.PDCManager;
 import com.flarium.api.ui.hologram.HologramManager;
 import com.flarium.api.ui.hologram.impl.FlariumHologramManager;
 import com.flarium.api.ui.hologram.impl.HologramListener;
+import com.flarium.api.ui.menu.MenuListener;
+import com.flarium.api.ui.menu.window.AbstractWindow;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.ArrayList;
 
 public class FlariumAPI extends JavaPlugin {
 
@@ -24,18 +28,21 @@ public class FlariumAPI extends JavaPlugin {
         this.hologramManager = new FlariumHologramManager(this, scheduler, pdcManager);
 
         getServer().getPluginManager().registerEvents(new HologramListener(hologramManager, pdcManager, scheduler), this);
+        getServer().getPluginManager().registerEvents(new MenuListener(), this);
 
         getLogger().info("FlariumAPI enabled!");
     }
 
     @Override
     public void onDisable() {
-        for (com.flarium.api.ui.menu.window.AbstractWindow window : com.flarium.api.ui.menu.window.AbstractWindow.ACTIVE_WINDOWS) {
+        for (AbstractWindow window : new ArrayList<>(AbstractWindow.ACTIVE_WINDOWS)) {
             window.close();
         }
 
         if (hologramManager != null) hologramManager.shutdown();
         if (scheduler != null) scheduler.shutdown();
+
+        instance = null;
         getLogger().info("FlariumAPI disabled!");
     }
 

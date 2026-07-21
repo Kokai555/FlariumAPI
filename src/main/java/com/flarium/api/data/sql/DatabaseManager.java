@@ -11,6 +11,9 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -18,30 +21,20 @@ public class DatabaseManager {
 
     private final JavaPlugin plugin;
     private final HikariDataSource dataSource;
+    private final ExecutorService executor;
 
     public DatabaseManager(JavaPlugin plugin, DatabaseConfig config) {
         this.plugin = plugin;
+        this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.dataSource = initHikari(config);
     }
 
     private HikariDataSource initHikari(DatabaseConfig config) {
         HikariConfig hikari = new HikariConfig();
-
-        if (config.type().equalsIgnoreCase("MYSQL")) {
-            hikari.setJdbcUrl(String.format("jdbc:mysql://%s:%d/%s", config.address(), config.port(), config.databaseName()));
-            hikari.setUsername(config.username());
-            hikari.setPassword(config.password());
-            hikari.setMaximumPoolSize(10);
-            hikari.setDriverClassName("com.mysql.cj.jdbc.Driver");
-            plugin.getLogger().info("Database connection established: MySQL (" + config.address() + ")");
-        } else {
-            hikari.setJdbcUrl("jdbc:sqlite:" + plugin.getDataFolder().getAbsolutePath() + "/database.db");
-            hikari.setDriverClassName("org.sqlite.JDBC");
-            hikari.setMaximumPoolSize(1);
-            plugin.getLogger().info("Database connection established: SQLite (database.db)");
-        }
-
+        config.type().configure(hikari, plugin, config);
         hikari.setPoolName("FlariumAPI-DB-Pool");
+
+        plugin.getLogger().info("Database connection established: " + config.type().name());
         return new HikariDataSource(hikari);
     }
 
@@ -53,8 +46,9 @@ public class DatabaseManager {
                 ps.executeUpdate();
             } catch (SQLException e) {
                 plugin.getLogger().severe("SQL Error (Update): " + e.getMessage());
+                throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     public <T> CompletableFuture<T> executeQuery(String sql, Consumer<PreparedStatement> setter, Function<ResultSet, T> mapper) {
@@ -67,9 +61,9 @@ public class DatabaseManager {
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("SQL Error (Query): " + e.getMessage());
-                return null;
+                throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     public <T> CompletableFuture<List<T>> executeQueryList(String sql, Consumer<PreparedStatement> setter, Function<ResultSet, T> mapper) {
@@ -85,9 +79,10 @@ public class DatabaseManager {
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("SQL Error (QueryList): " + e.getMessage());
+                throw new CompletionException(e);
             }
             return results;
-        });
+        }, executor);
     }
 
     public CompletableFuture<Void> executeTransaction(Consumer<Connection> consumer) {
@@ -100,11 +95,15 @@ public class DatabaseManager {
                 } catch (SQLException e) {
                     conn.rollback();
                     plugin.getLogger().severe("SQL Transaction Error, rolled back: " + e.getMessage());
+                    throw new CompletionException(e);
+                } finally {
+                    conn.setAutoCommit(true);
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("SQL Connection Error (Transaction): " + e.getMessage());
+                throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     public CompletableFuture<Void> executeBatch(String sql, Consumer<PreparedStatement> setter) {
@@ -112,18 +111,28 @@ public class DatabaseManager {
             try (Connection conn = dataSource.getConnection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
                 conn.setAutoCommit(false);
-                setter.accept(ps);
-                ps.executeBatch();
-                conn.commit();
+                try {
+                    setter.accept(ps);
+                    ps.executeBatch();
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    plugin.getLogger().severe("SQL Batch Error, rolled back: " + e.getMessage());
+                    throw new CompletionException(e);
+                } finally {
+                    conn.setAutoCommit(true);
+                }
             } catch (SQLException e) {
-                plugin.getLogger().severe("SQL Batch Error: " + e.getMessage());
+                plugin.getLogger().severe("SQL Connection Error (Batch): " + e.getMessage());
+                throw new CompletionException(e);
             }
-        });
+        }, executor);
     }
 
     public void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
+            executor.shutdown();
             plugin.getLogger().info("Database connection closed.");
         }
     }

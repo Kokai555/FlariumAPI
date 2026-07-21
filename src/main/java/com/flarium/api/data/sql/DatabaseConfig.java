@@ -3,7 +3,7 @@ package com.flarium.api.data.sql;
 import org.bukkit.configuration.ConfigurationSection;
 
 public record DatabaseConfig(
-        String type,
+        DatabaseType type,
         String address,
         int port,
         String databaseName,
@@ -12,25 +12,28 @@ public record DatabaseConfig(
 ) {
     public static DatabaseConfig load(ConfigurationSection section) {
         if (section == null) {
-            return new DatabaseConfig("SQLITE", null, 0, null, null, null);
+            return new DatabaseConfig(DatabaseType.SQLITE, null, 0, null, null, null);
         }
 
-        // Ha a type üres, alapértelmezetten SQLite-ot használunk
-        String type = section.getString("type", "SQLITE");
-        if (type == null || type.trim().isEmpty()) {
-            type = "SQLITE";
-        }
-        type = type.toUpperCase();
-
-        // Ha SQLite, a többi beállítás nem is kell
-        if (type.equals("SQLITE")) {
-            return new DatabaseConfig("SQLITE", null, 0, null, null, null);
+        String typeStr = section.getString("type", "SQLITE");
+        if (typeStr == null || typeStr.trim().isEmpty()) {
+            typeStr = "SQLITE";
         }
 
-        // MySQL beállítások betöltése
+        DatabaseType type;
+        try {
+            type = DatabaseType.valueOf(typeStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            type = DatabaseType.SQLITE;
+        }
+
+        if (type == DatabaseType.SQLITE) {
+            return new DatabaseConfig(DatabaseType.SQLITE, null, 0, null, null, null);
+        }
+
         ConfigurationSection settings = section.getConfigurationSection("settings");
         if (settings == null) {
-            return new DatabaseConfig("SQLITE", null, 0, null, null, null);
+            return new DatabaseConfig(DatabaseType.SQLITE, null, 0, null, null, null);
         }
 
         return new DatabaseConfig(

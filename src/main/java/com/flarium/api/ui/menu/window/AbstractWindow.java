@@ -31,6 +31,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
 
     private boolean handlesBottomInventory = false;
     private ItemStack[] playerInventoryBackup = null;
+    private boolean closed = false;
 
     public AbstractWindow(Player player, Gui gui, int size, String title) {
         this.player = player;
@@ -59,6 +60,9 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
 
     @Override
     public void close() {
+        if (closed) return;
+        closed = true;
+
         if (tickTask != null) {
             tickTask.cancel();
             tickTask = null;
@@ -67,6 +71,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
         if (handlesBottomInventory && playerInventoryBackup != null) {
             player.getInventory().setContents(playerInventoryBackup);
             player.updateInventory();
+            playerInventoryBackup = null;
         }
 
         player.closeInventory();
@@ -79,7 +84,10 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
         if (view.getTopInventory().getHolder() != this) return;
 
         ItemStack[] content = gui.getContent();
+        int topSize = view.getTopInventory().getSize();
+
         for (int i = 0; i < content.length; i++) {
+            if (i >= topSize && !handlesBottomInventory) break;
             if (i >= view.countSlots()) break;
 
             ItemStack current = view.getItem(i);

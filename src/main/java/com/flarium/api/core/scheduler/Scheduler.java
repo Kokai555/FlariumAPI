@@ -18,7 +18,6 @@ public class Scheduler {
     private final Plugin plugin;
     private final Executor asyncExecutor;
     private final Executor globalExecutor;
-    // Csak a Timer-öket mentjük el, az egyszer lefutókat nem!
     private final ConcurrentLinkedQueue<Task> pendingTimers = new ConcurrentLinkedQueue<>();
 
     public Scheduler(Plugin plugin) {
