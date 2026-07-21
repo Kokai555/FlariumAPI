@@ -31,7 +31,7 @@ public class CooldownManager {
         this.databaseManager = databaseManager;
         this.scheduler = scheduler;
         this.ephemeralCache = Caffeine.newBuilder()
-                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterWrite(24, TimeUnit.HOURS)
                 .build();
         this.persistentCache = new ConcurrentHashMap<>();
         this.activeExpireTasks = new ConcurrentHashMap<>();
@@ -39,7 +39,7 @@ public class CooldownManager {
         databaseManager.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS flarium_cooldowns (uuid VARCHAR(36), namespace VARCHAR(64), expiry BIGINT, PRIMARY KEY (uuid, namespace))",
                 ps -> {}
-        ).join();
+        );
     }
 
     public void set(UUID uuid, String namespace, Duration duration) {
@@ -180,6 +180,11 @@ public class CooldownManager {
 
     public String getFormattedRemaining(UUID uuid, String namespace, TimeFormat format) {
         return TimeUtil.formatDuration(getRemaining(uuid, namespace).getSeconds(), format);
+    }
+
+    public void shutdown() {
+        activeExpireTasks.values().forEach(Task::cancel);
+        activeExpireTasks.clear();
     }
 
     private void removePersistentFromDatabase(UUID uuid, String namespace) {
