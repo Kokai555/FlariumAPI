@@ -50,7 +50,7 @@ public class FlariumHologramManager implements HologramManager {
                 pdcManager.set(inter, "hologram_id", new UUIDDataType(), hologramId);
             });
 
-            Hologram hologram = new FlariumHologram(plugin, scheduler, anchor, interaction);
+            Hologram hologram = new FlariumHologram(plugin, scheduler, pdcManager, hologramId, anchor, interaction);
             holograms.put(hologramId, hologram);
             future.complete(hologram);
         });

@@ -1,6 +1,8 @@
 package com.flarium.api.ui.hologram.impl;
 
 import com.flarium.api.core.scheduler.Scheduler;
+import com.flarium.api.data.pdc.PDCManager;
+import com.flarium.api.data.pdc.UUIDDataType;
 import com.flarium.api.ui.hologram.Hologram;
 import com.flarium.api.ui.hologram.HologramLine;
 import com.flarium.api.ui.hologram.RenderMode;
@@ -12,7 +14,6 @@ import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -24,6 +25,8 @@ public class FlariumHologram implements Hologram {
 
     private final Plugin plugin;
     private final Scheduler scheduler;
+    private final PDCManager pdcManager;
+    private final UUID hologramId;
     private final ArmorStand anchor;
     private final Interaction interaction;
     private final List<HologramLine> lines = new CopyOnWriteArrayList<>();
@@ -32,13 +35,20 @@ public class FlariumHologram implements Hologram {
     private RenderMode renderMode = RenderMode.ALL;
     private final Set<UUID> viewers = ConcurrentHashMap.newKeySet();
 
-    public FlariumHologram(Plugin plugin, Scheduler scheduler, ArmorStand anchor, Interaction interaction) {
+    public FlariumHologram(Plugin plugin, Scheduler scheduler, PDCManager pdcManager, UUID hologramId, ArmorStand anchor, Interaction interaction) {
         this.plugin = plugin;
         this.scheduler = scheduler;
+        this.pdcManager = pdcManager;
+        this.hologramId = hologramId;
         this.anchor = anchor;
         this.interaction = interaction;
 
         scheduler.runForEntity(anchor, () -> anchor.addPassenger(interaction));
+    }
+
+    @Override
+    public UUID getId() {
+        return hologramId;
     }
 
     @Override
@@ -121,6 +131,7 @@ public class FlariumHologram implements Hologram {
                 Location lineLoc = baseLoc.clone().add(0, currentY, 0);
                 if (line.getEntity() == null) {
                     line.spawn(lineLoc);
+                    pdcManager.set(line.getEntity(), "hologram_id", new UUIDDataType(), hologramId);
                     anchor.addPassenger(line.getEntity());
                 } else {
                     line.getEntity().teleportAsync(lineLoc);

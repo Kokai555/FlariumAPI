@@ -5,7 +5,6 @@ import org.bukkit.Location;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 public class ItemLine extends AbstractHologramLine {
@@ -20,6 +19,7 @@ public class ItemLine extends AbstractHologramLine {
     @Override
     public void spawn(Location location) {
         ItemDisplay display = location.getWorld().spawn(location, ItemDisplay.class, d -> {
+            d.setPersistent(false);
             d.setItemStack(item);
             applyDisplayProperties(d);
             Transformation existing = d.getTransformation();

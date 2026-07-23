@@ -16,7 +16,7 @@ public class SoundUtil {
         String[] parts = parsed.split("\\|");
         if (parts.length == 0 || parts[0].isEmpty()) return;
 
-        String soundKey = parts[0].replace(".", "_").toLowerCase();
+        String soundKey = parts[0].toLowerCase();
         Sound sound = Registry.SOUNDS.get(NamespacedKey.minecraft(soundKey));
 
         if (sound == null) {
