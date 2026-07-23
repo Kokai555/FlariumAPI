@@ -22,6 +22,7 @@ public class TextLine extends AbstractHologramLine {
     @Override
     public void spawn(Location location) {
         TextDisplay display = location.getWorld().spawn(location, TextDisplay.class, d -> {
+            d.setPersistent(false);
             applyDisplayProperties(d);
             d.text(text);
             d.setBackgroundColor(backgroundColor);

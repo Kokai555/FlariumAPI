@@ -34,7 +34,7 @@ public class Structure {
                 char c = line.charAt(x);
                 if (c == ' ' || c == '.') continue;
 
-                int slot = y * 9 + x;
+                int slot = y * width + x;
                 charMap.computeIfAbsent(c, k -> new ArrayList<>()).add(slot);
             }
         }

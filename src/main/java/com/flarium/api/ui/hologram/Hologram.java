@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 public interface Hologram {
+    UUID getId();
     void addLine(HologramLine line);
     void removeLine(int index);
     void setRenderMode(RenderMode mode);

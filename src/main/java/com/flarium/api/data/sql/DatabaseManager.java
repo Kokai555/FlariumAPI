@@ -92,12 +92,19 @@ public class DatabaseManager {
                 try {
                     consumer.accept(conn);
                     conn.commit();
-                } catch (SQLException e) {
-                    conn.rollback();
+                } catch (Exception e) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException rollbackEx) {
+                        e.addSuppressed(rollbackEx);
+                    }
                     plugin.getLogger().severe("SQL Transaction Error, rolled back: " + e.getMessage());
                     throw new CompletionException(e);
                 } finally {
-                    conn.setAutoCommit(true);
+                    try {
+                        conn.setAutoCommit(true);
+                    } catch (SQLException ignored) {
+                    }
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("SQL Connection Error (Transaction): " + e.getMessage());
@@ -115,12 +122,19 @@ public class DatabaseManager {
                     setter.accept(ps);
                     ps.executeBatch();
                     conn.commit();
-                } catch (SQLException e) {
-                    conn.rollback();
+                } catch (Exception e) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException rollbackEx) {
+                        e.addSuppressed(rollbackEx);
+                    }
                     plugin.getLogger().severe("SQL Batch Error, rolled back: " + e.getMessage());
                     throw new CompletionException(e);
                 } finally {
-                    conn.setAutoCommit(true);
+                    try {
+                        conn.setAutoCommit(true);
+                    } catch (SQLException ignored) {
+                    }
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("SQL Connection Error (Batch): " + e.getMessage());
