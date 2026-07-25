@@ -19,6 +19,14 @@ public class ColorUtil {
             return Component.empty();
         }
 
+        return MINI_MESSAGE.deserialize(toMiniMessage(text));
+    }
+
+    public static String toMiniMessage(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+
         Matcher hexMatcher = HEX_PATTERN.matcher(text);
         StringBuilder hexBuffer = new StringBuilder();
         while (hexMatcher.find()) {
@@ -35,9 +43,7 @@ public class ColorUtil {
             legacyMatcher.appendReplacement(legacyBuffer, Matcher.quoteReplacement(replacement));
         }
         legacyMatcher.appendTail(legacyBuffer);
-        String fullyProcessed = legacyBuffer.toString();
-
-        return MINI_MESSAGE.deserialize(fullyProcessed);
+        return legacyBuffer.toString();
     }
 
     public static List<Component> format(List<String> list) {

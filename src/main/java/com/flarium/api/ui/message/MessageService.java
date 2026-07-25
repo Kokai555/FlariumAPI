@@ -1,6 +1,7 @@
 package com.flarium.api.ui.message;
 
 import com.flarium.api.core.config.PluginConfig;
+import com.flarium.api.core.util.ColorUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -64,7 +65,9 @@ public class MessageService<T extends Enum<T> & MessageKey> {
 
                 String joinedMessage = String.join("<newline>", linesToParse);
 
-                String finalMessage = PLACEHOLDER_PATTERN.matcher(joinedMessage)
+                String coloredMessage = ColorUtil.toMiniMessage(joinedMessage);
+
+                String finalMessage = PLACEHOLDER_PATTERN.matcher(coloredMessage)
                         .replaceAll(match -> "<" + match.group(1) + ">");
 
                 newCache.put(key, finalMessage);
@@ -72,7 +75,7 @@ public class MessageService<T extends Enum<T> & MessageKey> {
 
             synchronized (this) {
                 this.messageCache = newCache;
-                this.prefixResolver = Placeholder.component("prefix", miniMessage.deserialize(config.prefix()));
+                this.prefixResolver = Placeholder.component("prefix", miniMessage.deserialize(ColorUtil.toMiniMessage(config.prefix())));
             }
         }, Thread::startVirtualThread);
     }

@@ -17,10 +17,10 @@ dependencies {
     compileOnly("me.clip:placeholderapi:2.12.2")
 
     compileOnly("com.sk89q.worldedit:worldedit-core:7.3.0-SNAPSHOT")
+    compileOnly("org.xerial:sqlite-jdbc:3.47.1.0")
     compileOnly("com.sk89q.worldedit:worldedit-bukkit:7.3.0-SNAPSHOT")
 
     implementation("com.zaxxer:HikariCP:6.0.0")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     implementation("com.mysql:mysql-connector-j:9.0.0")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.4")
 }
@@ -58,7 +58,6 @@ tasks {
 
     shadowJar {
         relocate("com.zaxxer.hikari", "com.flarium.libs.hikari")
-        relocate("org.sqlite", "com.flarium.libs.sqlite")
         relocate("com.mysql", "com.flarium.libs.mysql")
 
         relocate("com.github.benmanes.caffeine", "com.flarium.libs.caffeine")
