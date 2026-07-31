@@ -62,31 +62,34 @@ public class WorldEditService {
                     return;
                 }
 
-                try (java.io.FileInputStream fis = new java.io.FileInputStream(file)) {
-                    com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat format = com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats.findByFile(file);
-                    if (format == null) {
-                        future.completeExceptionally(new IllegalArgumentException("Unknown schematic format!"));
-                        return;
-                    }
+                com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat format = com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats.findByFile(file);
+                if (format == null) {
+                    future.completeExceptionally(new IllegalArgumentException("Unknown schematic format!"));
+                    return;
+                }
+
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(file);
+                     com.sk89q.worldedit.extent.clipboard.io.ClipboardReader reader = format.getReader(fis)) {
+                    com.sk89q.worldedit.extent.clipboard.Clipboard clipboard = reader.read();
 
                     com.sk89q.worldedit.world.World weWorld = com.sk89q.worldedit.bukkit.BukkitAdapter.adapt(location.getWorld());
                     com.sk89q.worldedit.math.BlockVector3 origin = com.sk89q.worldedit.bukkit.BukkitAdapter.asBlockVector(location);
 
-                    try (com.sk89q.worldedit.extent.clipboard.io.ClipboardReader reader = format.getReader(fis)) {
-                        com.sk89q.worldedit.extent.clipboard.Clipboard clipboard = reader.read();
-
+                    scheduler.runGlobal(() -> {
                         try (com.sk89q.worldedit.EditSession session = com.sk89q.worldedit.WorldEdit.getInstance().newEditSession(weWorld)) {
                             com.sk89q.worldedit.function.operation.Operations.complete(
                                     new com.sk89q.worldedit.session.ClipboardHolder(clipboard)
                                             .createPaste(session)
                                             .to(origin)
-                                            .ignoreAirBlocks(ignoreAir) // JAVÍTOTT: ignoreAirBlocks
+                                            .ignoreAirBlocks(ignoreAir)
                                             .build()
                             );
+                            future.complete(null);
+                        } catch (Exception e) {
+                            plugin.getLogger().severe("Failed to paste schematic: " + e.getMessage());
+                            future.completeExceptionally(e);
                         }
-                    }
-
-                    future.complete(null);
+                    });
                 } catch (Exception e) {
                     plugin.getLogger().severe("Failed to paste schematic: " + e.getMessage());
                     future.completeExceptionally(e);
