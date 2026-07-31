@@ -1,6 +1,9 @@
 package com.flarium.api.core.util;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
 import java.util.ArrayList;
@@ -13,13 +16,20 @@ public class ColorUtil {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final Pattern HEX_PATTERN = Pattern.compile("&#([0-9a-fA-F]{6})");
     private static final Pattern LEGACY_PATTERN = Pattern.compile("&([0-9a-fk-orA-FK-OR])");
+    private static final Cache<String, Component> FORMAT_CACHE = Caffeine.newBuilder().maximumSize(1000).build();
+    private static final Cache<String, String> MINIMESSAGE_CACHE = Caffeine.newBuilder().maximumSize(1000).build();
 
     public static Component format(String text) {
         if (text == null || text.isEmpty()) {
             return Component.empty();
         }
 
-        return MINI_MESSAGE.deserialize(toMiniMessage(text));
+        return FORMAT_CACHE.get(text, ColorUtil::computeFormat);
+    }
+
+    private static Component computeFormat(String text) {
+        return MINI_MESSAGE.deserialize(toMiniMessage(text))
+                .decorationIfAbsent(TextDecoration.ITALIC, TextDecoration.State.FALSE);
     }
 
     public static String toMiniMessage(String text) {
@@ -27,6 +37,10 @@ public class ColorUtil {
             return "";
         }
 
+        return MINIMESSAGE_CACHE.get(text, ColorUtil::computeMiniMessage);
+    }
+
+    private static String computeMiniMessage(String text) {
         Matcher hexMatcher = HEX_PATTERN.matcher(text);
         StringBuilder hexBuffer = new StringBuilder();
         while (hexMatcher.find()) {
@@ -36,7 +50,7 @@ public class ColorUtil {
         String hexProcessed = hexBuffer.toString();
 
         Matcher legacyMatcher = LEGACY_PATTERN.matcher(hexProcessed);
-        StringBuffer legacyBuffer = new StringBuffer();
+        StringBuilder legacyBuffer = new StringBuilder();
         while (legacyMatcher.find()) {
             char code = legacyMatcher.group(1).toLowerCase().charAt(0);
             String replacement = mapLegacyToMiniMessage(code);
