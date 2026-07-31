@@ -20,13 +20,19 @@ import java.util.function.Function;
 public class DatabaseManager {
 
     private final JavaPlugin plugin;
+    private final DatabaseType databaseType;
     private final HikariDataSource dataSource;
     private final ExecutorService executor;
 
     public DatabaseManager(JavaPlugin plugin, DatabaseConfig config) {
         this.plugin = plugin;
+        this.databaseType = config.type();
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.dataSource = initHikari(config);
+    }
+
+    public DatabaseType getDatabaseType() {
+        return databaseType;
     }
 
     private HikariDataSource initHikari(DatabaseConfig config) {

@@ -86,12 +86,17 @@ public class MessageService<T extends Enum<T> & MessageKey> {
             return;
         }
 
-        TagResolver resolver = TagResolver.builder()
-                .resolvers(prefixResolver)
-                .resolvers(resolvers)
-                .build();
+        Component component;
+        if (resolvers.length == 0) {
+            component = miniMessage.deserialize(cachedMessage, prefixResolver);
+        } else {
+            TagResolver resolver = TagResolver.builder()
+                    .resolvers(prefixResolver)
+                    .resolvers(resolvers)
+                    .build();
+            component = miniMessage.deserialize(cachedMessage, resolver);
+        }
 
-        Component component = miniMessage.deserialize(cachedMessage, resolver);
         sender.sendMessage(component);
     }
 }

@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class Scheduler {
@@ -47,19 +48,19 @@ public class Scheduler {
     }
 
     public Task runAsyncDelayed(Runnable runnable, Duration delay) {
-        return wrapTimer(Bukkit.getAsyncScheduler().runDelayed(plugin, t -> runnable.run(), delay.toMillis(), TimeUnit.MILLISECONDS));
+        return wrapOneShot(runnable, action -> Bukkit.getAsyncScheduler().runDelayed(plugin, t -> action.run(), delay.toMillis(), TimeUnit.MILLISECONDS));
     }
 
     public Task runGlobalDelayed(Runnable runnable, Duration delay) {
-        return wrapTimer(Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> runnable.run(), toTicks(delay)));
+        return wrapOneShot(runnable, action -> Bukkit.getGlobalRegionScheduler().runDelayed(plugin, t -> action.run(), toTicks(delay)));
     }
 
     public Task runForEntityDelayed(Entity entity, Runnable runnable, Duration delay) {
-        return wrapTimer(entity.getScheduler().runDelayed(plugin, t -> runnable.run(), null, toTicks(delay)));
+        return wrapOneShot(runnable, action -> entity.getScheduler().runDelayed(plugin, t -> action.run(), null, toTicks(delay)));
     }
 
     public Task runAtLocationDelayed(Location location, Runnable runnable, Duration delay) {
-        return wrapTimer(Bukkit.getRegionScheduler().runDelayed(plugin, location, t -> runnable.run(), toTicks(delay)));
+        return wrapOneShot(runnable, action -> Bukkit.getRegionScheduler().runDelayed(plugin, location, t -> action.run(), toTicks(delay)));
     }
 
     public Task runAsyncTimer(Runnable runnable, Duration delay, Duration period) {
@@ -99,15 +100,35 @@ public class Scheduler {
     }
 
     private Task wrapTimer(ScheduledTask task) {
-        Task wrapped = new Task() {
-            @Override
-            public void cancel() {
-                task.cancel();
-                pendingTimers.remove(this);
-            }
-        };
+        WrappedTask wrapped = new WrappedTask();
+        wrapped.inner = task;
         pendingTimers.add(wrapped);
         return wrapped;
+    }
+
+    private Task wrapOneShot(Runnable runnable, Function<Runnable, ScheduledTask> schedule) {
+        WrappedTask wrapped = new WrappedTask();
+        pendingTimers.add(wrapped);
+        wrapped.inner = schedule.apply(() -> {
+            try {
+                runnable.run();
+            } finally {
+                pendingTimers.remove(wrapped);
+            }
+        });
+        return wrapped;
+    }
+
+    private final class WrappedTask implements Task {
+
+        private volatile ScheduledTask inner;
+
+        @Override
+        public void cancel() {
+            ScheduledTask task = inner;
+            if (task != null) task.cancel();
+            pendingTimers.remove(this);
+        }
     }
 
     public void shutdown() {

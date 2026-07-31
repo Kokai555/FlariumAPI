@@ -7,10 +7,11 @@ import com.flarium.api.core.util.TimeFormat;
 import com.flarium.api.core.util.TimeUtil;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -26,15 +27,18 @@ public class CooldownManager {
     private final Cache<CooldownKey, Long> ephemeralCache;
     private final ConcurrentHashMap<CooldownKey, Long> persistentCache;
     private final ConcurrentHashMap<CooldownKey, Task> activeExpireTasks;
+    private final ConcurrentHashMap<UUID, Set<CooldownKey>> keysByUuid;
 
     public CooldownManager(DatabaseManager databaseManager, Scheduler scheduler) {
         this.databaseManager = databaseManager;
         this.scheduler = scheduler;
         this.ephemeralCache = Caffeine.newBuilder()
                 .expireAfterWrite(24, TimeUnit.HOURS)
+                .removalListener((CooldownKey key, Long expiry, RemovalCause cause) -> unindexKey(key))
                 .build();
         this.persistentCache = new ConcurrentHashMap<>();
         this.activeExpireTasks = new ConcurrentHashMap<>();
+        this.keysByUuid = new ConcurrentHashMap<>();
 
         databaseManager.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS flarium_cooldowns (uuid VARCHAR(36), namespace VARCHAR(64), expiry BIGINT, PRIMARY KEY (uuid, namespace))",
@@ -50,6 +54,7 @@ public class CooldownManager {
         CooldownKey key = CooldownKey.of(uuid, namespace);
         long expiry = System.currentTimeMillis() + duration.toMillis();
         ephemeralCache.put(key, expiry);
+        indexKey(uuid, key);
 
         Task existingTask = activeExpireTasks.remove(key);
         if (existingTask != null) {
@@ -73,20 +78,17 @@ public class CooldownManager {
         CooldownKey key = CooldownKey.of(uuid, namespace);
         long expiry = System.currentTimeMillis() + duration.toMillis();
         persistentCache.put(key, expiry);
+        indexKey(uuid, key);
 
-        return databaseManager.executeTransaction(conn -> {
-            try (PreparedStatement del = conn.prepareStatement("DELETE FROM flarium_cooldowns WHERE uuid = ? AND namespace = ?")) {
-                del.setString(1, uuid.toString());
-                del.setString(2, namespace);
-                del.executeUpdate();
-            } catch (SQLException e) {
-                throw new CompletionException(e);
-            }
-            try (PreparedStatement ins = conn.prepareStatement("INSERT INTO flarium_cooldowns (uuid, namespace, expiry) VALUES (?, ?, ?)")) {
-                ins.setString(1, uuid.toString());
-                ins.setString(2, namespace);
-                ins.setLong(3, expiry);
-                ins.executeUpdate();
+        String sql = switch (databaseManager.getDatabaseType()) {
+            case SQLITE -> "INSERT OR REPLACE INTO flarium_cooldowns (uuid, namespace, expiry) VALUES (?, ?, ?)";
+            case MYSQL -> "INSERT INTO flarium_cooldowns (uuid, namespace, expiry) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE expiry = VALUES(expiry)";
+        };
+        return databaseManager.executeUpdate(sql, ps -> {
+            try {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, namespace);
+                ps.setLong(3, expiry);
             } catch (SQLException e) {
                 throw new CompletionException(e);
             }
@@ -104,7 +106,9 @@ public class CooldownManager {
         }, rs -> {
             try {
                 while (rs.next()) {
-                    persistentCache.put(CooldownKey.of(uuid, rs.getString("namespace")), rs.getLong("expiry"));
+                    CooldownKey key = CooldownKey.of(uuid, rs.getString("namespace"));
+                    persistentCache.put(key, rs.getLong("expiry"));
+                    indexKey(uuid, key);
                 }
             } catch (SQLException e) {
                 throw new CompletionException(e);
@@ -114,13 +118,21 @@ public class CooldownManager {
     }
 
     public void invalidatePersistent(UUID uuid) {
-        persistentCache.entrySet().removeIf(entry -> entry.getKey().uuid().equals(uuid));
+        Set<CooldownKey> keys = keysByUuid.get(uuid);
+        if (keys == null) return;
+        for (CooldownKey key : keys) {
+            persistentCache.remove(key);
+            if (ephemeralCache.getIfPresent(key) == null) {
+                unindexKey(key);
+            }
+        }
     }
 
     public void remove(UUID uuid, String namespace) {
         CooldownKey key = CooldownKey.of(uuid, namespace);
         ephemeralCache.invalidate(key);
         persistentCache.remove(key);
+        unindexKey(key);
 
         Task task = activeExpireTasks.remove(key);
         if (task != null) {
@@ -131,16 +143,16 @@ public class CooldownManager {
     }
 
     public void clearOnQuit(UUID uuid) {
-        persistentCache.entrySet().removeIf(entry -> entry.getKey().uuid().equals(uuid));
-        ephemeralCache.asMap().keySet().removeIf(key -> key.uuid().equals(uuid));
-
-        activeExpireTasks.entrySet().removeIf(entry -> {
-            if (entry.getKey().uuid().equals(uuid)) {
-                entry.getValue().cancel();
-                return true;
+        Set<CooldownKey> keys = keysByUuid.remove(uuid);
+        if (keys == null) return;
+        for (CooldownKey key : keys) {
+            persistentCache.remove(key);
+            ephemeralCache.invalidate(key);
+            Task task = activeExpireTasks.remove(key);
+            if (task != null) {
+                task.cancel();
             }
-            return false;
-        });
+        }
     }
 
     public boolean isActive(UUID uuid, String namespace) {
@@ -155,6 +167,7 @@ public class CooldownManager {
 
         if (persistentExpiry != null) {
             persistentCache.remove(key);
+            unindexKey(key);
             removePersistentFromDatabase(uuid, namespace);
         }
 
@@ -185,6 +198,21 @@ public class CooldownManager {
     public void shutdown() {
         activeExpireTasks.values().forEach(Task::cancel);
         activeExpireTasks.clear();
+    }
+
+    private void indexKey(UUID uuid, CooldownKey key) {
+        keysByUuid.computeIfAbsent(uuid, k -> ConcurrentHashMap.newKeySet()).add(key);
+    }
+
+    private void unindexKey(CooldownKey key) {
+        if (key == null) return;
+        Set<CooldownKey> keys = keysByUuid.get(key.uuid());
+        if (keys != null) {
+            keys.remove(key);
+            if (keys.isEmpty()) {
+                keysByUuid.remove(key.uuid(), keys);
+            }
+        }
     }
 
     private void removePersistentFromDatabase(UUID uuid, String namespace) {

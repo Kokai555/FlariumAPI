@@ -8,6 +8,8 @@ import java.util.UUID;
 
 public class UUIDDataType implements PersistentDataType<byte[], UUID> {
 
+    public static final UUIDDataType INSTANCE = new UUIDDataType();
+
     @Override
     public Class<byte[]> getPrimitiveType() {
         return byte[].class;
