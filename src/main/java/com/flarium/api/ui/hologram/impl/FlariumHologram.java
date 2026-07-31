@@ -3,6 +3,8 @@ package com.flarium.api.ui.hologram.impl;
 import com.flarium.api.core.scheduler.Scheduler;
 import com.flarium.api.data.pdc.PDCManager;
 import com.flarium.api.data.pdc.UUIDDataType;
+import com.flarium.api.nms.DisplayAdapter;
+import com.flarium.api.ui.hologram.AbstractHologramLine;
 import com.flarium.api.ui.hologram.Hologram;
 import com.flarium.api.ui.hologram.HologramLine;
 import com.flarium.api.ui.hologram.RenderMode;
@@ -13,7 +15,10 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +39,9 @@ public class FlariumHologram implements Hologram {
 
     private RenderMode renderMode = RenderMode.ALL;
     private final Set<UUID> viewers = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> shownTo = ConcurrentHashMap.newKeySet();
+    private Location lastSyncedLocation;
+    private volatile boolean attached;
 
     public FlariumHologram(Plugin plugin, Scheduler scheduler, PDCManager pdcManager, UUID hologramId, ArmorStand anchor, Interaction interaction) {
         this.plugin = plugin;
@@ -84,26 +92,40 @@ public class FlariumHologram implements Hologram {
         updateVisibility();
     }
 
+    void clearPlayer(UUID uuid) {
+        viewers.remove(uuid);
+        shownTo.remove(uuid);
+    }
+
     @Override
     public void updateVisibility() {
         scheduler.runForEntity(anchor, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 boolean shouldSee = shouldSee(player);
 
-                if (shouldSee) {
+                if (shouldSee && shownTo.add(player.getUniqueId())) {
                     player.showEntity(plugin, anchor);
                     player.showEntity(plugin, interaction);
                     for (HologramLine line : lines) {
-                        if (line.getEntity() != null) player.showEntity(plugin, line.getEntity());
+                        if (!(line instanceof AbstractHologramLine) && line.getEntity() != null) {
+                            player.showEntity(plugin, line.getEntity());
+                        }
+                        DisplayAdapter displayAdapter = displayAdapterOf(line);
+                        if (displayAdapter != null) displayAdapter.sendSpawn(player, displayAdapter.getLocation());
                     }
-                } else {
+                } else if (!shouldSee && shownTo.remove(player.getUniqueId())) {
                     player.hideEntity(plugin, anchor);
                     player.hideEntity(plugin, interaction);
                     for (HologramLine line : lines) {
-                        if (line.getEntity() != null) player.hideEntity(plugin, line.getEntity());
+                        if (!(line instanceof AbstractHologramLine) && line.getEntity() != null) {
+                            player.hideEntity(plugin, line.getEntity());
+                        }
+                        DisplayAdapter displayAdapter = displayAdapterOf(line);
+                        if (displayAdapter != null) displayAdapter.sendDestroy(player);
                     }
                 }
             }
+            shownTo.removeIf(uuid -> Bukkit.getPlayer(uuid) == null);
         });
     }
 
@@ -120,31 +142,79 @@ public class FlariumHologram implements Hologram {
     }
 
     private void recalculateOffsets() {
-        scheduler.runForEntity(anchor, () -> {
-            Location baseLoc = anchor.getLocation().clone();
-            float currentY = 0;
+        scheduler.runForEntity(anchor, this::recalculateOffsetsNow);
+    }
 
-            for (int i = lines.size() - 1; i >= 0; i--) {
-                HologramLine line = lines.get(i);
-                currentY += line.getHeight() / 2;
+    private void recalculateOffsetsNow() {
+        Location baseLoc = anchor.getLocation();
+        lastSyncedLocation = baseLoc;
+        float currentY = 0;
+        Collection<Player> shown = shownPlayers();
 
-                Location lineLoc = baseLoc.clone().add(0, currentY, 0);
-                if (line.getEntity() == null) {
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            HologramLine line = lines.get(i);
+            currentY += line.getHeight() / 2;
+
+            Location lineLoc = baseLoc.clone().add(0, currentY, 0);
+            if (line instanceof AbstractHologramLine abstractLine) {
+                DisplayAdapter displayAdapter = abstractLine.getDisplayAdapter();
+                if (displayAdapter == null) {
+                    abstractLine.setViewerSupplier(this::shownPlayers);
                     line.spawn(lineLoc);
-                    pdcManager.set(line.getEntity(), "hologram_id", new UUIDDataType(), hologramId);
-                    anchor.addPassenger(line.getEntity());
+                    displayAdapter = abstractLine.getDisplayAdapter();
+                    if (displayAdapter != null) {
+                        displayAdapter.setPosition(lineLoc);
+                        for (Player player : shown) {
+                            displayAdapter.sendSpawn(player, lineLoc);
+                        }
+                    }
                 } else {
-                    line.getEntity().teleportAsync(lineLoc);
+                    displayAdapter.setPosition(lineLoc);
+                    for (Player player : shown) {
+                        displayAdapter.sendTeleport(player, lineLoc);
+                    }
                 }
-
-                currentY += line.getHeight() / 2;
+            } else if (line.getEntity() == null) {
+                line.spawn(lineLoc);
+                pdcManager.set(line.getEntity(), "hologram_id", UUIDDataType.INSTANCE, hologramId);
+                anchor.addPassenger(line.getEntity());
+            } else {
+                line.getEntity().teleportAsync(lineLoc);
             }
 
-            if (interaction != null && !interaction.isDead()) {
-                interaction.setInteractionHeight(Math.max(0.5f, currentY));
-                interaction.setInteractionWidth(2.0f);
+            currentY += line.getHeight() / 2;
+        }
+
+        if (interaction != null && !interaction.isDead()) {
+            interaction.setInteractionHeight(Math.max(0.5f, currentY));
+            interaction.setInteractionWidth(2.0f);
+        }
+    }
+
+    void syncLinesToAnchor() {
+        scheduler.runForEntity(anchor, () -> {
+            attached = anchor.getVehicle() != null;
+            Location current = anchor.getLocation();
+            if (lastSyncedLocation != null
+                    && lastSyncedLocation.getWorld() == current.getWorld()
+                    && lastSyncedLocation.distanceSquared(current) < 1.0E-6) {
+                return;
             }
+            recalculateOffsetsNow();
         });
+    }
+
+    private Collection<Player> shownPlayers() {
+        List<Player> players = new ArrayList<>(shownTo.size());
+        for (UUID uuid : shownTo) {
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null) players.add(player);
+        }
+        return players;
+    }
+
+    private @Nullable DisplayAdapter displayAdapterOf(HologramLine line) {
+        return line instanceof AbstractHologramLine abstractLine ? abstractLine.getDisplayAdapter() : null;
     }
 
     @Override
@@ -161,7 +231,14 @@ public class FlariumHologram implements Hologram {
 
     @Override
     public void attachTo(Entity entity) {
-        scheduler.runForEntity(entity, () -> entity.addPassenger(anchor));
+        scheduler.runForEntity(entity, () -> {
+            entity.addPassenger(anchor);
+            attached = true;
+        });
+    }
+
+    boolean isAttached() {
+        return attached;
     }
 
     @Override
@@ -169,6 +246,7 @@ public class FlariumHologram implements Hologram {
         scheduler.runForEntity(anchor, () -> {
             lines.forEach(HologramLine::despawn);
             lines.clear();
+            shownTo.clear();
             if (interaction != null && !interaction.isDead()) interaction.remove();
             if (anchor != null && !anchor.isDead()) anchor.remove();
         });

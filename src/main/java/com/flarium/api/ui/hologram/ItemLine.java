@@ -1,10 +1,12 @@
 package com.flarium.api.ui.hologram;
 
 import com.flarium.api.core.scheduler.Scheduler;
+import com.flarium.api.nms.DisplayAdapter;
+import com.flarium.api.nms.DisplayAdapters;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.Transformation;
 import org.joml.Vector3f;
 
 public class ItemLine extends AbstractHologramLine {
@@ -18,24 +20,27 @@ public class ItemLine extends AbstractHologramLine {
 
     @Override
     public void spawn(Location location) {
-        ItemDisplay display = location.getWorld().spawn(location, ItemDisplay.class, d -> {
-            d.setPersistent(false);
-            d.setItemStack(item);
-            applyDisplayProperties(d);
-            Transformation existing = d.getTransformation();
-            d.setTransformation(new Transformation(
-                    new Vector3f(0, -0.25f, 0),
-                    existing.getLeftRotation(),
-                    existing.getScale(),
-                    existing.getRightRotation()
-            ));
-        });
-        setEntity(display);
+        DisplayAdapter displayAdapter;
+        try {
+            displayAdapter = DisplayAdapters.createItem(location.getWorld());
+        } catch (UnsupportedOperationException e) {
+            Bukkit.getLogger().warning("[FlariumAPI] Skipping hologram item line: " + e.getMessage());
+            return;
+        }
+        setTranslation(new Vector3f(0, -0.25f, 0));
+        applyDisplayProperties(displayAdapter);
+        displayAdapter.setItem(item);
+        setDisplayAdapter(displayAdapter);
     }
 
     @Override
     public void despawn() {
-        if (getEntity() != null && !getEntity().isDead()) getEntity().remove();
+        DisplayAdapter displayAdapter = getDisplayAdapter();
+        if (displayAdapter == null) return;
+        for (Player player : getViewers()) {
+            displayAdapter.sendDestroy(player);
+        }
+        setDisplayAdapter(null);
     }
 
     @Override
@@ -45,8 +50,9 @@ public class ItemLine extends AbstractHologramLine {
 
     public ItemLine item(ItemStack item) {
         this.item = item;
-        if (getEntity() != null && getEntity().isValid()) {
-            scheduler.runForEntity(getEntity(), () -> ((ItemDisplay) getEntity()).setItemStack(item));
+        if (getDisplayAdapter() != null) {
+            getDisplayAdapter().setItem(item);
+            sendUpdate();
         }
         return this;
     }

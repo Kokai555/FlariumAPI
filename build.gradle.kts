@@ -1,6 +1,5 @@
 plugins {
     id("java-library")
-    id("xyz.jpenilla.run-paper") version "3.0.2"
     id("com.gradleup.shadow") version "9.4.3"
     id("maven-publish") // Ezt a sort kell hozzáadni
 }
@@ -13,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.8-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.12.2")
 
     compileOnly("com.sk89q.worldedit:worldedit-core:7.3.0-SNAPSHOT")
@@ -23,6 +22,20 @@ dependencies {
     implementation("com.zaxxer:HikariCP:6.0.0")
     implementation("com.mysql:mysql-connector-j:9.0.0")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.4")
+
+    implementation(project(":nms:api"))
+    implementation(project(":nms:shared"))
+    implementation(project(":nms:v1_21_4"))
+    implementation(project(":nms:v1_21_5"))
+    implementation(project(":nms:v1_21_6"))
+    implementation(project(":nms:v1_21_7"))
+    implementation(project(":nms:v1_21_8"))
+    implementation(project(":nms:v1_21_9"))
+    implementation(project(":nms:v1_21_10"))
+    implementation(project(":nms:v1_21_11"))
+    implementation(project(":nms:v26_1_1"))
+    implementation(project(":nms:v26_1_2"))
+    implementation(project(":nms:v26_2"))
 }
 
 java {
@@ -44,11 +57,6 @@ publishing {
 }
 
 tasks {
-    runServer {
-        minecraftVersion("1.21.8")
-        jvmArgs("-Xms2G", "-Xmx2G", "-Dcom.mojang.eula.agree=true")
-    }
-
     processResources {
         val props = mapOf("version" to version)
         filesMatching("plugin.yml") {

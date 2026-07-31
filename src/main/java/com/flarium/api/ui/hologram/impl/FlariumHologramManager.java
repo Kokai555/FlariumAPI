@@ -3,6 +3,7 @@ package com.flarium.api.ui.hologram.impl;
 import com.flarium.api.data.pdc.PDCManager;
 import com.flarium.api.data.pdc.UUIDDataType;
 import com.flarium.api.core.scheduler.Scheduler;
+import com.flarium.api.core.scheduler.Task;
 import com.flarium.api.ui.hologram.Hologram;
 import com.flarium.api.ui.hologram.HologramManager;
 import org.bukkit.Location;
@@ -10,6 +11,7 @@ import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Interaction;
 import org.bukkit.plugin.Plugin;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -21,11 +23,14 @@ public class FlariumHologramManager implements HologramManager {
     private final Scheduler scheduler;
     private final PDCManager pdcManager;
     private final ConcurrentHashMap<UUID, Hologram> holograms = new ConcurrentHashMap<>();
+    private final Task movementTask;
+    private long tickCount;
 
     public FlariumHologramManager(Plugin plugin, Scheduler scheduler, PDCManager pdcManager) {
         this.plugin = plugin;
         this.scheduler = scheduler;
         this.pdcManager = pdcManager;
+        this.movementTask = scheduler.runGlobalTimer(this::syncMovingAnchors, Duration.ofMillis(50), Duration.ofMillis(50));
     }
 
     @Override
@@ -40,14 +45,14 @@ public class FlariumHologramManager implements HologramManager {
                 stand.setMarker(true);
                 stand.setSmall(true);
                 stand.setGravity(false);
-                pdcManager.set(stand, "hologram_id", new UUIDDataType(), hologramId);
+                pdcManager.set(stand, "hologram_id", UUIDDataType.INSTANCE, hologramId);
             });
 
             Interaction interaction = location.getWorld().spawn(location, Interaction.class, inter -> {
                 inter.setInteractionWidth(1.0f);
                 inter.setInteractionHeight(1.0f);
                 inter.setResponsive(true);
-                pdcManager.set(inter, "hologram_id", new UUIDDataType(), hologramId);
+                pdcManager.set(inter, "hologram_id", UUIDDataType.INSTANCE, hologramId);
             });
 
             Hologram hologram = new FlariumHologram(plugin, scheduler, pdcManager, hologramId, anchor, interaction);
@@ -76,8 +81,20 @@ public class FlariumHologramManager implements HologramManager {
         }
     }
 
+    private void syncMovingAnchors() {
+        tickCount++;
+        for (Hologram hologram : holograms.values()) {
+            if (hologram instanceof FlariumHologram flariumHologram) {
+                if (flariumHologram.isAttached() || tickCount % 20 == 0) {
+                    flariumHologram.syncLinesToAnchor();
+                }
+            }
+        }
+    }
+
     @Override
     public void shutdown() {
+        movementTask.cancel();
         for (Hologram hologram : holograms.values()) {
             scheduler.runAtLocation(hologram.getAnchor().getLocation(), hologram::remove);
         }

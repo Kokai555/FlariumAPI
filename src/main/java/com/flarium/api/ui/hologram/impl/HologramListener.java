@@ -12,8 +12,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 
 import java.time.Duration;
@@ -34,8 +36,8 @@ public class HologramListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            if (entity instanceof ArmorStand || entity instanceof org.bukkit.entity.Display || entity instanceof Interaction) {
-                UUID hologramId = pdcManager.get(entity, "hologram_id", new UUIDDataType());
+            if (entity instanceof ArmorStand || entity instanceof Interaction) {
+                UUID hologramId = pdcManager.get(entity, "hologram_id", UUIDDataType.INSTANCE);
                 if (hologramId != null && hologramManager.getHologram(hologramId) == null) {
                     scheduler.runAtLocation(entity.getLocation(), entity::remove);
                 }
@@ -52,11 +54,28 @@ public class HologramListener implements Listener {
     }
 
     @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        hologramManager.getHolograms().forEach(hologram -> {
+            if (hologram instanceof FlariumHologram flariumHologram) {
+                flariumHologram.clearPlayer(uuid);
+            } else {
+                hologram.removeViewer(uuid);
+            }
+        });
+    }
+
+    @EventHandler
+    public void onChangedWorld(PlayerChangedWorldEvent event) {
+        hologramManager.getHolograms().forEach(Hologram::updateVisibility);
+    }
+
+    @EventHandler
     public void onInteract(PlayerInteractEntityEvent event) {
         Entity clicked = event.getRightClicked();
         if (!(clicked instanceof ArmorStand) && !(clicked instanceof Interaction)) return;
 
-        UUID hologramId = pdcManager.get(clicked, "hologram_id", new UUIDDataType());
+        UUID hologramId = pdcManager.get(clicked, "hologram_id", UUIDDataType.INSTANCE);
         if (hologramId == null) return;
 
         Hologram hologram = hologramManager.getHologram(hologramId);
@@ -72,7 +91,7 @@ public class HologramListener implements Listener {
         if (!(damaged instanceof ArmorStand) && !(damaged instanceof Interaction)) return;
         if (!(event.getDamager() instanceof Player player)) return;
 
-        UUID hologramId = pdcManager.get(damaged, "hologram_id", new UUIDDataType());
+        UUID hologramId = pdcManager.get(damaged, "hologram_id", UUIDDataType.INSTANCE);
         if (hologramId == null) return;
 
         Hologram hologram = hologramManager.getHologram(hologramId);
