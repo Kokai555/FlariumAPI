@@ -7,7 +7,10 @@ import org.bukkit.entity.Entity;
 import org.bukkit.plugin.Plugin;
 
 import java.time.Duration;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +23,8 @@ public class Scheduler {
     private final Executor asyncExecutor;
     private final Executor globalExecutor;
     private final ConcurrentLinkedQueue<Task> pendingTimers = new ConcurrentLinkedQueue<>();
+    private final Set<CompletableFuture<?>> pendingFutures = ConcurrentHashMap.newKeySet();
+    private volatile boolean shutdown;
 
     public Scheduler(Plugin plugin) {
         this.plugin = plugin;
@@ -28,23 +33,72 @@ public class Scheduler {
     }
 
     public CompletableFuture<Void> runAsync(Runnable runnable) {
-        return CompletableFuture.runAsync(runnable, asyncExecutor);
+        Objects.requireNonNull(runnable, "runnable");
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        track(future);
+        try {
+            asyncExecutor.execute(() -> runGuarded(future, runnable));
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+        }
+        return future;
     }
 
     public <T> CompletableFuture<T> supplyAsync(Supplier<T> supplier) {
-        return CompletableFuture.supplyAsync(supplier, asyncExecutor);
+        Objects.requireNonNull(supplier, "supplier");
+        CompletableFuture<T> future = new CompletableFuture<>();
+        track(future);
+        try {
+            asyncExecutor.execute(() -> {
+                try {
+                    future.complete(supplier.get());
+                } catch (Throwable t) {
+                    future.completeExceptionally(t);
+                }
+            });
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+        }
+        return future;
     }
 
     public CompletableFuture<Void> runGlobal(Runnable runnable) {
-        return CompletableFuture.runAsync(runnable, globalExecutor);
+        Objects.requireNonNull(runnable, "runnable");
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        track(future);
+        try {
+            globalExecutor.execute(() -> runGuarded(future, runnable));
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+        }
+        return future;
     }
 
     public CompletableFuture<Void> runForEntity(Entity entity, Runnable runnable) {
-        return CompletableFuture.runAsync(runnable, forEntity(entity));
+        Objects.requireNonNull(runnable, "runnable");
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        track(future);
+        try {
+            entity.getScheduler().run(plugin,
+                    task -> runGuarded(future, runnable),
+                    () -> future.completeExceptionally(
+                            new IllegalStateException("Entity retired before task execution")));
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+        }
+        return future;
     }
 
     public CompletableFuture<Void> runAtLocation(Location location, Runnable runnable) {
-        return CompletableFuture.runAsync(runnable, atLocation(location));
+        Objects.requireNonNull(runnable, "runnable");
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        track(future);
+        try {
+            atLocation(location).execute(() -> runGuarded(future, runnable));
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+        }
+        return future;
     }
 
     public Task runAsyncDelayed(Runnable runnable, Duration delay) {
@@ -108,7 +162,6 @@ public class Scheduler {
 
     private Task wrapOneShot(Runnable runnable, Function<Runnable, ScheduledTask> schedule) {
         WrappedTask wrapped = new WrappedTask();
-        pendingTimers.add(wrapped);
         wrapped.inner = schedule.apply(() -> {
             try {
                 runnable.run();
@@ -116,7 +169,31 @@ public class Scheduler {
                 pendingTimers.remove(wrapped);
             }
         });
+        pendingTimers.add(wrapped);
         return wrapped;
+    }
+
+    /**
+     * C3/C4: deterministic terminal path for every returned future. The future
+     * is tracked until it completes; shutdown drains the tracked set, and a
+     * post-shutdown submission fails immediately instead of pending silently.
+     */
+    private <T> CompletableFuture<T> track(CompletableFuture<T> future) {
+        pendingFutures.add(future);
+        future.whenComplete((result, error) -> pendingFutures.remove(future));
+        if (shutdown) {
+            future.completeExceptionally(new IllegalStateException("Scheduler is shut down"));
+        }
+        return future;
+    }
+
+    private static void runGuarded(CompletableFuture<Void> future, Runnable runnable) {
+        try {
+            runnable.run();
+            future.complete(null);
+        } catch (Throwable t) {
+            future.completeExceptionally(t);
+        }
     }
 
     private final class WrappedTask implements Task {
@@ -132,9 +209,14 @@ public class Scheduler {
     }
 
     public void shutdown() {
+        shutdown = true;
         for (Task task : pendingTimers) {
             task.cancel();
         }
         pendingTimers.clear();
+        for (CompletableFuture<?> future : pendingFutures) {
+            future.completeExceptionally(new IllegalStateException("Scheduler is shut down"));
+        }
+        pendingFutures.clear();
     }
 }

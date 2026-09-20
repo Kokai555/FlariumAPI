@@ -129,6 +129,63 @@ Identical C39 framing before and after (source + parser probes authoritative):
   headless against the real `takeIfEnough`/`take`/`give`, all throwing
   `IllegalArgumentException` as before).
 
+## C3 — Scheduler futures left permanently incomplete
+
+**Current status: FIXED — verified against current checkout (2026-09-20).**
+
+- **Root cause:** the five future-returning `Scheduler` methods delegated to
+  `CompletableFuture.runAsync/supplyAsync` with Bukkit executors that discard
+  the `ScheduledTask` handle, and every entity scheduling call passed a `null`
+  retired callback. A scheduling failure therefore threw synchronously (the
+  internal future was abandoned, never returned), a retired/dropped entity left
+  the returned future pending forever, and a null entity threw NPE outright.
+- **Fix:** each method now builds its own `CompletableFuture`, wires the entity
+  `retired` callback to `IllegalStateException("Entity retired before task
+  execution")`, and converts any scheduling throw into exceptional completion
+  (`Objects.requireNonNull` preserved for null runnable/supplier). Success
+  semantics and signatures unchanged; `forEntity`/`atLocation` executors,
+  timers, and timing untouched.
+- **Probe evidence:** headless probe against the real `Scheduler` with a fake
+  `EntityScheduler` (RUN_NOW/RETIRE/DROP) — pre-fix 8 failures (F0 null entity
+  SYNC-THROW NPE; F1 DROP PENDING before and after shutdown; F2 RETIRE PENDING;
+  F5/F9/F10 scheduling failure SYNC-THROW with no future). Post-fix 11/11 pass
+  (F3 success, F4 exception propagation preserved).
+- **Build/test evidence:** `./gradlew compileJava --rerun-tasks` BUILD
+  SUCCESSFUL (26/26 executed); `./gradlew test` BUILD SUCCESSFUL (13 tests,
+  0 failures); `./gradlew check` BUILD SUCCESSFUL; `git diff --check` clean.
+- **Jev before/after:** identical C3 framing before and after; no verdict
+  obtainable in this environment (all calls `HTTP 401 missing or invalid API
+  key`, before and after). Source + probes authoritative; no keys exposed.
+
+## C4 — Scheduler shutdown lifecycle and pending-state leak
+
+**Current status: FIXED — verified against current checkout (2026-09-20).**
+
+- **Root cause:** `wrapOneShot` added the wrapper to `pendingTimers` *before*
+  `schedule.apply(...)`, so a scheduling throw leaked a dead entry (probe
+  `pendingTimers=1`); `shutdown()` had no lifecycle flag and futures were
+  untracked, so it could neither drain accepted-but-never-run futures nor give
+  post-shutdown submissions a deterministic path.
+- **Fix:** `wrapOneShot` adds only after successful scheduling (throw path adds
+  nothing, exception still propagates for `Task` methods); new `volatile
+  shutdown` flag plus a `pendingFutures` set (entries removed on completion);
+  `shutdown()` sets the flag, cancels timers as before (idempotent), and
+  completes remaining futures with `IllegalStateException("Scheduler is shut
+  down")`; post-shutdown submissions fail immediately via the same error
+  instead of pending silently. No blocking, no timing changes.
+- **Probe evidence:** same harness — pre-fix F6 leak (`pendingTimers=1`),
+  F1 still PENDING after shutdown, F7 `NO-SHUTDOWN-FLAG`, F8 post-shutdown
+  SYNC-THROW with no future. Post-fix F6 `pendingTimers=0`, F1
+  PENDING-then-`EXCEPTIONAL:IllegalStateException`, F7 idempotent
+  (`shutdown=true`), F8 immediately exceptional. No pending-task leak.
+- **Build/test evidence:** same as C3 (compile/test/check green, diff-check
+  clean). `CooldownManager` (C27) and `WorldEditService` (C115) untouched and
+  unregressed; their call sites use `Task`/fire-and-forget futures whose
+  success paths are byte-for-byte preserved (probe F3/F4).
+- **Jev before/after:** identical C4 framing before and after; no verdict
+  obtainable (all calls `HTTP 401`, before and after). Source + probes
+  authoritative; no keys exposed.
+
 ## C28 — profile login/shutdown lifecycle (AbstractProfileManager)
 
 **Current status: FIXED — verified against current checkout (2026-09-20).**
