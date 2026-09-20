@@ -14,6 +14,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -27,8 +28,11 @@ public class DatabaseManager {
     public DatabaseManager(JavaPlugin plugin, DatabaseConfig config) {
         this.plugin = plugin;
         this.databaseType = config.type();
+        // C31: initialize the pool before creating the executor so a failed
+        // init cannot orphan an executor instance.
+        HikariDataSource dataSource = initHikari(config);
+        this.dataSource = dataSource;
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
-        this.dataSource = initHikari(config);
     }
 
     public DatabaseType getDatabaseType() {
@@ -40,8 +44,10 @@ public class DatabaseManager {
         config.type().configure(hikari, plugin, config);
         hikari.setPoolName("FlariumAPI-DB-Pool");
 
+        // C31: only report success after construction actually succeeded.
+        HikariDataSource dataSource = new HikariDataSource(hikari);
         plugin.getLogger().info("Database connection established: " + config.type().name());
-        return new HikariDataSource(hikari);
+        return dataSource;
     }
 
     public CompletableFuture<Void> executeUpdate(String sql, Consumer<PreparedStatement> setter) {
@@ -50,8 +56,11 @@ public class DatabaseManager {
                  PreparedStatement ps = conn.prepareStatement(sql)) {
                 setter.accept(ps);
                 ps.executeUpdate();
-            } catch (SQLException e) {
+            } catch (Exception e) {
+                // C31: also cover RuntimeExceptions from the setter (e.g. wrapped
+                // SQLExceptions), which previously bypassed error reporting.
                 plugin.getLogger().severe("SQL Error (Update): " + e.getMessage());
+                if (e instanceof CompletionException ce) throw ce;
                 throw new CompletionException(e);
             }
         }, executor);
@@ -65,8 +74,11 @@ public class DatabaseManager {
                 try (ResultSet rs = ps.executeQuery()) {
                     return mapper.apply(rs);
                 }
-            } catch (SQLException e) {
+            } catch (Exception e) {
+                // C31: also cover RuntimeExceptions from setter/mapper, which
+                // previously bypassed error reporting.
                 plugin.getLogger().severe("SQL Error (Query): " + e.getMessage());
+                if (e instanceof CompletionException ce) throw ce;
                 throw new CompletionException(e);
             }
         }, executor);
@@ -83,8 +95,10 @@ public class DatabaseManager {
                         results.add(mapper.apply(rs));
                     }
                 }
-            } catch (SQLException e) {
+            } catch (Exception e) {
+                // C31: same logging coverage as executeQuery above.
                 plugin.getLogger().severe("SQL Error (QueryList): " + e.getMessage());
+                if (e instanceof CompletionException ce) throw ce;
                 throw new CompletionException(e);
             }
             return results;
@@ -98,14 +112,18 @@ public class DatabaseManager {
                 try {
                     consumer.accept(conn);
                     conn.commit();
-                } catch (Exception e) {
+                } catch (Throwable t) {
+                    // C31: roll back on any failure including Errors, which
+                    // previously bypassed rollback via catch (Exception).
                     try {
                         conn.rollback();
                     } catch (SQLException rollbackEx) {
-                        e.addSuppressed(rollbackEx);
+                        t.addSuppressed(rollbackEx);
                     }
-                    plugin.getLogger().severe("SQL Transaction Error, rolled back: " + e.getMessage());
-                    throw new CompletionException(e);
+                    plugin.getLogger().severe("SQL Transaction Error, rolled back: " + t.getMessage());
+                    if (t instanceof CompletionException ce) throw ce;
+                    if (t instanceof Exception e) throw new CompletionException(e);
+                    throw new CompletionException(t);
                 } finally {
                     try {
                         conn.setAutoCommit(true);
@@ -128,14 +146,18 @@ public class DatabaseManager {
                     setter.accept(ps);
                     ps.executeBatch();
                     conn.commit();
-                } catch (Exception e) {
+                } catch (Throwable t) {
+                    // C31: roll back on any failure including Errors, which
+                    // previously bypassed rollback via catch (Exception).
                     try {
                         conn.rollback();
                     } catch (SQLException rollbackEx) {
-                        e.addSuppressed(rollbackEx);
+                        t.addSuppressed(rollbackEx);
                     }
-                    plugin.getLogger().severe("SQL Batch Error, rolled back: " + e.getMessage());
-                    throw new CompletionException(e);
+                    plugin.getLogger().severe("SQL Batch Error, rolled back: " + t.getMessage());
+                    if (t instanceof CompletionException ce) throw ce;
+                    if (t instanceof Exception e) throw new CompletionException(e);
+                    throw new CompletionException(t);
                 } finally {
                     try {
                         conn.setAutoCommit(true);
@@ -150,10 +172,27 @@ public class DatabaseManager {
     }
 
     public void close() {
-        if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
+        // C31: shut down the executor first (in-flight work needs the pool),
+        // await its termination, and always attempt the pool close even if an
+        // earlier stage fails. Idempotent.
+        try {
             executor.shutdown();
-            plugin.getLogger().info("Database connection closed.");
+            try {
+                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException interrupted) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        } finally {
+            try {
+                if (dataSource != null && !dataSource.isClosed()) {
+                    dataSource.close();
+                }
+            } finally {
+                plugin.getLogger().info("Database connection closed.");
+            }
         }
     }
 }
