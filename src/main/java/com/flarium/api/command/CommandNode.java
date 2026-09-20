@@ -62,6 +62,9 @@ public abstract class CommandNode {
         if (!children.isEmpty()) {
             CommandNode child = getChild(context.getString(0));
             if (child != null) {
+                if (child.getPermission() != null && !context.getSender().hasPermission(child.getPermission())) {
+                    return List.of();
+                }
                 return child.tabComplete(context.shift());
             }
         }
