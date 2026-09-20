@@ -24,6 +24,8 @@ public class CooldownManager {
     private final DatabaseManager databaseManager;
     private final Scheduler scheduler;
 
+    // C27: ephemeral values are monotonic System.nanoTime() deadlines (immune to
+    // wall-clock jumps). Persisted values in persistentCache/DB stay epoch-millis.
     private final Cache<CooldownKey, Long> ephemeralCache;
     private final ConcurrentHashMap<CooldownKey, Long> persistentCache;
     private final ConcurrentHashMap<CooldownKey, Task> activeExpireTasks;
@@ -52,8 +54,7 @@ public class CooldownManager {
 
     public void set(UUID uuid, String namespace, Duration duration, Runnable onExpire, Executor executor) {
         CooldownKey key = CooldownKey.of(uuid, namespace);
-        long expiry = System.currentTimeMillis() + duration.toMillis();
-        ephemeralCache.put(key, expiry);
+        ephemeralCache.put(key, monotonicDeadlineNanos(duration));
         indexKey(uuid, key);
 
         Task existingTask = activeExpireTasks.remove(key);
@@ -78,7 +79,7 @@ public class CooldownManager {
                         activeExpireTasks.remove(key);
                     }
                 }
-            }, duration);
+            }, scheduleDelay(duration));
             taskHolder[0] = task;
             activeExpireTasks.put(key, task);
         }
@@ -86,7 +87,7 @@ public class CooldownManager {
 
     public CompletableFuture<Void> setPersistent(UUID uuid, String namespace, Duration duration) {
         CooldownKey key = CooldownKey.of(uuid, namespace);
-        long expiry = System.currentTimeMillis() + duration.toMillis();
+        long expiry = epochExpiryMillis(duration);
         persistentCache.put(key, expiry);
         indexKey(uuid, key);
 
@@ -167,10 +168,12 @@ public class CooldownManager {
 
     public boolean isActive(UUID uuid, String namespace) {
         CooldownKey key = CooldownKey.of(uuid, namespace);
-        long now = System.currentTimeMillis();
+        long nowMono = System.nanoTime();
 
-        Long ephemeralExpiry = ephemeralCache.getIfPresent(key);
-        if (ephemeralExpiry != null && ephemeralExpiry > now) return true;
+        Long ephemeralDeadline = ephemeralCache.getIfPresent(key);
+        if (ephemeralDeadline != null && ephemeralDeadline > nowMono) return true;
+
+        long now = System.currentTimeMillis();
 
         Long persistentExpiry = persistentCache.get(key);
         if (persistentExpiry != null && persistentExpiry > now) return true;
@@ -186,12 +189,14 @@ public class CooldownManager {
 
     public Duration getRemaining(UUID uuid, String namespace) {
         CooldownKey key = CooldownKey.of(uuid, namespace);
-        long now = System.currentTimeMillis();
+        long nowMono = System.nanoTime();
 
-        Long ephemeralExpiry = ephemeralCache.getIfPresent(key);
-        if (ephemeralExpiry != null && ephemeralExpiry > now) {
-            return Duration.ofMillis(ephemeralExpiry - now);
+        Long ephemeralDeadline = ephemeralCache.getIfPresent(key);
+        if (ephemeralDeadline != null && ephemeralDeadline > nowMono) {
+            return Duration.ofNanos(ephemeralDeadline - nowMono);
         }
+
+        long now = System.currentTimeMillis();
 
         Long persistentExpiry = persistentCache.get(key);
         if (persistentExpiry != null && persistentExpiry > now) {
@@ -208,6 +213,59 @@ public class CooldownManager {
     public void shutdown() {
         activeExpireTasks.values().forEach(Task::cancel);
         activeExpireTasks.clear();
+    }
+
+    /**
+     * C27: in-memory (ephemeral) deadlines use a monotonic clock so wall-clock
+     * jumps (NTP/operator changes) cannot shorten or extend active cooldowns.
+     * Persisted state intentionally stays on epoch millis
+     * (see {@link #epochExpiryMillis}) because it must survive restarts and be
+     * comparable across sessions.
+     */
+    private static long monotonicDeadlineNanos(Duration duration) {
+        return saturatingAdd(System.nanoTime(), toNanosSaturated(duration));
+    }
+
+    /**
+     * C27: persisted expiries remain epoch-millis based (DB + cross-restart
+     * comparisons). Saturates instead of silently wrapping on overflow.
+     */
+    private static long epochExpiryMillis(Duration duration) {
+        return saturatingAdd(System.currentTimeMillis(), toMillisSaturated(duration));
+    }
+
+    /**
+     * C27: never hand the scheduler a negative delay. Negative/zero durations
+     * keep the existing contract (no active cooldown) while a registered
+     * callback still fires on the next tick instead of throwing inside the
+     * scheduler.
+     */
+    private static Duration scheduleDelay(Duration duration) {
+        if (duration.isNegative()) return Duration.ZERO;
+        return duration;
+    }
+
+    private static long toNanosSaturated(Duration duration) {
+        try {
+            return duration.toNanos();
+        } catch (ArithmeticException overflow) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private static long toMillisSaturated(Duration duration) {
+        try {
+            return duration.toMillis();
+        } catch (ArithmeticException overflow) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private static long saturatingAdd(long a, long b) {
+        long result = a + b;
+        if (b > 0 && result < a) return Long.MAX_VALUE;
+        if (b < 0 && result > a) return Long.MIN_VALUE;
+        return result;
     }
 
     private void indexKey(UUID uuid, CooldownKey key) {
