@@ -33,7 +33,32 @@ public class FlariumPlaceholderExpansion extends PlaceholderExpansion {
     public @NotNull String getVersion() { return plugin.getDescription().getVersion(); }
 
     @Override
+    public @Nullable String getRequiredPlugin() {
+        return plugin != null ? plugin.getName() : null;
+    }
+
+    @Override
     public boolean persist() { return true; }
+
+    /**
+     * C117: explicit owner-disable lifecycle.
+     *
+     * <p>{@code persist() == true} is intentional: internal dependency-registered
+     * expansions must survive PlaceholderAPI reloads ({@code /papi reload} calls
+     * {@code LocalExpansionManager#unregisterAll}, which skips persistent expansions).
+     * Owner-disable cleanup is therefore explicit: call {@link #close()} from the owning
+     * plugin's {@code onDisable} (via {@code PlaceholderService#close()}). The
+     * {@link #getRequiredPlugin()} override above is only a safety net so PAPI's own
+     * {@code PluginDisableEvent} listener can auto-unregister if the owner forgets.</p>
+     */
+    public void close() {
+        try {
+            unregister();
+        } catch (Throwable ignored) {
+            // PAPI absent/disabled or already unregistered -> still clear local state below.
+        }
+        placeholders.clear();
+    }
 
     @Override
     public @Nullable String onRequest(OfflinePlayer player, @NotNull String params) {

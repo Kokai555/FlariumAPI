@@ -55,7 +55,8 @@ public class CurrencyManager {
 
     public void give(Player player, String currencyId, double amount) {
         Currency currency = currencies.get(currencyId.toLowerCase());
-        if (currency == null) return;
+        if (currency == null) throw new IllegalArgumentException("Unknown or disabled currency: " + currencyId);
+        if (!Double.isFinite(amount) || amount <= 0) throw new IllegalArgumentException("Amount must be a positive finite number: " + amount);
 
         String amountStr = currency.allowDecimals() ? String.valueOf(amount) : String.valueOf((long) Math.round(amount));
         String command = currency.giveCommand()
@@ -67,7 +68,8 @@ public class CurrencyManager {
 
     public void take(Player player, String currencyId, double amount) {
         Currency currency = currencies.get(currencyId.toLowerCase());
-        if (currency == null) return;
+        if (currency == null) throw new IllegalArgumentException("Unknown or disabled currency: " + currencyId);
+        if (!Double.isFinite(amount) || amount <= 0) throw new IllegalArgumentException("Amount must be a positive finite number: " + amount);
 
         String amountStr = currency.allowDecimals() ? String.valueOf(amount) : String.valueOf((long) Math.round(amount));
         String command = currency.takeCommand()

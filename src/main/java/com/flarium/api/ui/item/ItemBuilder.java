@@ -20,6 +20,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
+import java.util.Locale;
 
 public class ItemBuilder {
 
@@ -38,12 +39,14 @@ public class ItemBuilder {
 
     public ItemBuilder name(String miniMessage) {
         if (miniMessage == null || miniMessage.isEmpty()) return this;
+        if (meta == null) return this;
         meta.displayName(ColorUtil.format(miniMessage));
         return this;
     }
 
     public ItemBuilder lore(List<String> miniMessages) {
         if (miniMessages == null || miniMessages.isEmpty()) return this;
+        if (meta == null) return this;
         meta.lore(ColorUtil.format(miniMessages));
         return this;
     }
@@ -54,6 +57,7 @@ public class ItemBuilder {
     }
 
     public ItemBuilder customModelData(int data) {
+        if (meta == null) return this;
         if (data != 0) {
             meta.setCustomModelData(data);
         }
@@ -61,6 +65,7 @@ public class ItemBuilder {
     }
 
     public ItemBuilder glow(boolean glow) {
+        if (meta == null) return this;
         if (glow) {
             meta.addEnchant(Enchantment.LUCK_OF_THE_SEA, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
@@ -69,12 +74,14 @@ public class ItemBuilder {
     }
 
     public ItemBuilder hideTooltip(boolean hide) {
+        if (meta == null) return this;
         meta.setHideTooltip(hide);
         return this;
     }
 
     public ItemBuilder color(Color color) {
         if (color == null) return this;
+        if (meta == null) return this;
         if (meta instanceof LeatherArmorMeta leatherMeta) {
             leatherMeta.setColor(color);
         } else if (meta instanceof PotionMeta potionMeta) {
@@ -84,6 +91,7 @@ public class ItemBuilder {
     }
 
     public ItemBuilder unbreakable(boolean unbreakable) {
+        if (meta == null) return this;
         meta.setUnbreakable(unbreakable);
         if (unbreakable) {
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
@@ -93,6 +101,7 @@ public class ItemBuilder {
 
     public ItemBuilder addPersistentData(Plugin plugin, String key, String value) {
         if (key == null || value == null) return this;
+        if (meta == null) return this;
         meta.getPersistentDataContainer().set(
                 new NamespacedKey(plugin, key),
                 PersistentDataType.STRING,
@@ -123,17 +132,21 @@ public class ItemBuilder {
     }
 
     public ItemBuilder enchant(Enchantment enchantment, int level) {
+        if (meta == null) return this;
         meta.addEnchant(enchantment, level, true);
         return this;
     }
 
     public ItemBuilder flag(ItemFlag... flags) {
+        if (meta == null) return this;
         meta.addItemFlags(flags);
         return this;
     }
 
     public ItemStack build() {
-        item.setItemMeta(meta);
+        if (meta != null) {
+            item.setItemMeta(meta);
+        }
         return item;
     }
 
@@ -143,7 +156,7 @@ public class ItemBuilder {
         String materialName = section.getString("material", "");
         if (materialName.isEmpty()) return new ItemStack(Material.AIR);
 
-        Material material = Material.matchMaterial(materialName.toUpperCase().replace("-", "_"));
+        Material material = Material.matchMaterial(materialName.toUpperCase(Locale.ROOT).replace("-", "_"));
         if (material == null) {
             material = Material.STONE;
         }
@@ -180,9 +193,16 @@ public class ItemBuilder {
         if (section.contains("enchants")) {
             for (String enchantLine : section.getStringList("enchants")) {
                 String[] split = enchantLine.split(":");
-                Enchantment enchant = org.bukkit.Registry.ENCHANTMENT.get(org.bukkit.NamespacedKey.minecraft(split[0].toLowerCase()));
+                Enchantment enchant = org.bukkit.Registry.ENCHANTMENT.get(org.bukkit.NamespacedKey.minecraft(split[0].toLowerCase(Locale.ROOT)));
                 if (enchant != null) {
-                    int level = split.length > 1 ? Integer.parseInt(split[1]) : 1;
+                    int level = 1;
+                    if (split.length > 1) {
+                        try {
+                            level = Integer.parseInt(split[1]);
+                        } catch (NumberFormatException ignored) {
+                            continue;
+                        }
+                    }
                     builder.enchant(enchant, level);
                 }
             }
@@ -191,7 +211,7 @@ public class ItemBuilder {
         if (section.contains("flags")) {
             for (String flagName : section.getStringList("flags")) {
                 try {
-                    builder.flag(ItemFlag.valueOf(flagName.toUpperCase()));
+                    builder.flag(ItemFlag.valueOf(flagName.toUpperCase(Locale.ROOT)));
                 } catch (IllegalArgumentException ignored) {
                 }
             }
