@@ -128,3 +128,77 @@ Identical C39 framing before and after (source + parser probes authoritative):
   (unknown/disabled currency and NaN/negative/zero/Infinity validation verified
   headless against the real `takeIfEnough`/`take`/`give`, all throwing
   `IllegalArgumentException` as before).
+
+## C28 — profile login/shutdown lifecycle (AbstractProfileManager)
+
+**Current status: FIXED — verified against current checkout (2026-09-20).**
+
+- **Applicability (all sub-findings confirmed in current tree):**
+  blocking `loadProfile().join()` in `onPreLogin` with no timeout; shutdown that
+  awaited only a `pendingSaves` snapshot (in-flight loads and saves enqueued
+  mid-drain never awaited); `pendingLoads` removal staged inside the
+  `computeIfAbsent` mapping, which both opened a remove-before-cache-put window
+  for duplicate DB hits and threw `ConcurrentHashMap` "Recursive update" for
+  synchronously-completed database futures; eviction listener saving snapshots
+  while an online copy existed (races live mutations on the eviction thread) and
+  letting a synchronously-throwing implementation propagate into Caffeine internals.
+- **Fix (`data/cache/AbstractProfileManager.java`, no API breakage):** pre-login
+  wait bounded via `get(loginTimeoutSeconds())` (default 10s; event already fires
+  on Paper's async login thread, main thread never blocked) with kick on timeout;
+  `pendingLoads` holds the terminal stage with removal attached after the cache
+  put and outside the mapping function (coalescing preserved, no recursive
+  update, null/sync-throwing implementations contained); shutdown sets a
+  `shuttingDown` flag (new loads rejected, late completions no longer
+  repopulate), then drains saves AND loads in a deadline loop (default 5s total,
+  saves enqueued mid-drain picked up); eviction saves skipped while an
+  `activeProfiles` copy exists (quit/shutdown path owns online persistence);
+  saves routed via a null/exception-safe tracking helper. `onQuit` stays
+  non-blocking; no Folia-owned thread gains arbitrary blocking.
+- **Probe evidence:** `ProfileManagerLifecycleTest` (7 tests, real SQLite-free
+  headless manager with mocked `Bukkit`/`JavaPlugin`): concurrent 8-caller loads
+  coalesce to 1 DB hit; hung login load kicks within timeout (pre-fix negative:
+  handler stuck, bounded 5s wait timed out); failed load kicks and retry
+  succeeds; shutdown completes cleanly with persistence+invalidation; shutdown
+  bounded with hanging save and with in-flight load; eviction persists the
+  evicted entry. Pre-fix run reproduced the login hang and the "Recursive
+  update" failures in bounded form.
+- **Build/test evidence:** `./gradlew compileJava --rerun-tasks` BUILD
+  SUCCESSFUL; `./gradlew test` 13/13 pass (7 C28 + 6 C40); `./gradlew check`
+  BUILD SUCCESSFUL; `git diff --check` clean.
+- **Jev before/after:** identical C28 framing (source state before/after);
+  before and after both `HTTP 401 (missing or invalid API key)` — no key in
+  this environment (`TYPESAFE_API_KEY` placeholder), so no
+  `is_real/severity/impact/human_review` scores; source + bounded probes
+  authoritative. provider/model=opencode/muse-spark-1.3-contributor-free.
+
+## C40 — SQLite transaction re-entry starvation (DatabaseType/DatabaseManager)
+
+**Current status: FIXED — verified against current checkout (2026-09-20).**
+
+- **Applicability (confirmed in current tree):** `DatabaseType.SQLITE` sets
+  `maximumPoolSize(1)`; `executeTransaction` held that single connection while
+  the callback could re-enter the manager (`executeUpdate`/`executeQuery`/
+  `executeQueryList`/`executeBatch`/`executeTransaction`), which then waited for
+  a second connection until Hikari's `connectionTimeout` (~30s starvation).
+- **Fix (`data/sql/DatabaseManager.java`, pool size unchanged on purpose):**
+  SQLite stays at pool size 1 (single-writer; enlarging would trade starvation
+  for `SQLITE_BUSY` lock failures). Transaction semantics made safe and
+  explicit: per-thread owner tracking fails re-entrant pool-backed calls fast
+  with `IllegalStateException` (synchronous guard in the query/update/batch
+  methods, failed-future guard for nested `executeTransaction`), the owner is
+  cleared in the existing C31 `finally`; new additive `update`/`query`/
+  `queryList(Connection, ...)` static helpers run statements on the
+  transaction-owned connection; `executeTransaction` javadoc states the
+  non-reentrancy contract. C31 hardening preserved verbatim (pool-before-
+  executor init, setter/mapper error logging, rollback on `Throwable`, executor-
+  before-pool close order); no SQL semantics altered.
+- **Probe evidence:** `DatabaseTransactionTest` (6 tests, real SQLite via
+  temporary data folder): re-entrant callback fails fast with
+  `IllegalStateException` (pre-fix negative: bounded 8s wait timed out =
+  starvation reproduced); commit persists; failure rolls back; connection-bound
+  helpers work inside a transaction; 6 concurrent transactions serialize and
+  all complete; pool size asserted to remain 1.
+- **Build/test evidence:** same as C28 above (13/13, check clean).
+- **Jev before/after:** identical C40 framing; before and after both `HTTP 401
+  (missing or invalid API key)`, no scores; source + bounded probes
+  authoritative. provider/model=opencode/muse-spark-1.3-contributor-free.

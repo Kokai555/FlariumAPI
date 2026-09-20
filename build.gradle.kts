@@ -23,6 +23,12 @@ dependencies {
     implementation("com.mysql:mysql-connector-j:9.0.0")
     implementation("com.github.ben-manes.caffeine:caffeine:3.2.4")
 
+    testImplementation("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    testImplementation("org.xerial:sqlite-jdbc:3.47.1.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.mockito:mockito-core:5.14.0")
+
     implementation(project(":nms:api"))
     implementation(project(":nms:shared"))
     implementation(project(":nms:v1_21_4"))
@@ -57,6 +63,10 @@ publishing {
 }
 
 tasks {
+    test {
+        useJUnitPlatform()
+    }
+
     processResources {
         val props = mapOf("version" to version)
         filesMatching("plugin.yml") {
