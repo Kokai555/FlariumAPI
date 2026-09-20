@@ -3,6 +3,8 @@ package com.flarium.api.feature.currency;
 import com.flarium.api.core.util.ColorUtil;
 import net.kyori.adventure.text.Component;
 
+import java.math.BigDecimal;
+
 public record Currency(
         String id,
         boolean enabled,
@@ -14,7 +16,8 @@ public record Currency(
         String takeCommand
 ) {
     public Component formatDisplay(double amount) {
-        String amountStr = allowDecimals ? String.valueOf(amount) : String.valueOf(Math.round(amount));
+        // C49: plain decimal notation, no scientific notation for large amounts.
+        String amountStr = allowDecimals ? BigDecimal.valueOf(amount).toPlainString() : String.valueOf(Math.round(amount));
         String formatted = displayFormat.replace("%amount%", amountStr);
         return ColorUtil.format(formatted);
     }
