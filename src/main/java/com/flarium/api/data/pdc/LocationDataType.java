@@ -28,9 +28,24 @@ public class LocationDataType implements PersistentDataType<String, Location> {
 
     @Override
     public Location fromPrimitive(String primitive, PersistentDataAdapterContext context) {
-        if (primitive.isEmpty()) return null;
+        if (primitive == null || primitive.isEmpty()) return null;
         String[] parts = primitive.split(",");
-        World world = Bukkit.getWorld(UUID.fromString(parts[0]));
-        return new Location(world, Double.parseDouble(parts[1]), Double.parseDouble(parts[2]), Double.parseDouble(parts[3]), Float.parseFloat(parts[4]), Float.parseFloat(parts[5]));
+        if (parts.length != 6) return null;
+        UUID worldId;
+        double x, y, z;
+        float yaw, pitch;
+        try {
+            worldId = UUID.fromString(parts[0]);
+            x = Double.parseDouble(parts[1]);
+            y = Double.parseDouble(parts[2]);
+            z = Double.parseDouble(parts[3]);
+            yaw = Float.parseFloat(parts[4]);
+            pitch = Float.parseFloat(parts[5]);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+        World world = Bukkit.getWorld(worldId);
+        if (world == null) return null;
+        return new Location(world, x, y, z, yaw, pitch);
     }
 }

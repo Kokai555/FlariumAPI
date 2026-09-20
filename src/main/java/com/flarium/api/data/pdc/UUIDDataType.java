@@ -30,6 +30,11 @@ public class UUIDDataType implements PersistentDataType<byte[], UUID> {
 
     @Override
     public UUID fromPrimitive(byte[] primitive, PersistentDataAdapterContext context) {
+        if (primitive == null || primitive.length != 16) {
+            throw new IllegalArgumentException(
+                    "UUID byte array must be exactly 16 bytes, got "
+                            + (primitive == null ? "null" : primitive.length + " bytes"));
+        }
         ByteBuffer bb = ByteBuffer.wrap(primitive);
         long firstLong = bb.getLong();
         long secondLong = bb.getLong();

@@ -1,6 +1,7 @@
 package com.flarium.api.data.pdc;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import org.bukkit.persistence.PersistentDataAdapterContext;
 import org.bukkit.persistence.PersistentDataType;
 
@@ -30,6 +31,10 @@ public class JsonDataType<T> implements PersistentDataType<String, T> {
 
     @Override
     public T fromPrimitive(String primitive, PersistentDataAdapterContext context) {
-        return GSON.fromJson(primitive, type);
+        try {
+            return GSON.fromJson(primitive, type);
+        } catch (JsonParseException e) {
+            return null;
+        }
     }
 }

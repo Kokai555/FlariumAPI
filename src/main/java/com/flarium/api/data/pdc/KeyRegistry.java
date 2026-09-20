@@ -5,12 +5,13 @@ import org.bukkit.plugin.Plugin;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Locale;
 
 public class KeyRegistry {
     private static final Map<String, NamespacedKey> KEY_CACHE = new ConcurrentHashMap<>();
 
     public static NamespacedKey getKey(Plugin plugin, String name) {
-        String mapKey = plugin.getName().toLowerCase() + ":" + name.toLowerCase();
-        return KEY_CACHE.computeIfAbsent(mapKey, k -> new NamespacedKey(plugin, name.toLowerCase()));
+        String mapKey = plugin.getName().toLowerCase(Locale.ROOT) + ":" + name.toLowerCase(Locale.ROOT);
+        return KEY_CACHE.computeIfAbsent(mapKey, k -> new NamespacedKey(plugin, name.toLowerCase(Locale.ROOT)));
     }
 }
