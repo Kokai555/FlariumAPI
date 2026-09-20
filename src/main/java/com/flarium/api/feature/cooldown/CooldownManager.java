@@ -62,14 +62,24 @@ public class CooldownManager {
         }
 
         if (onExpire != null) {
+            final Task[] taskHolder = new Task[1];
             Task task = scheduler.runAsyncDelayed(() -> {
-                if (executor != null) {
-                    executor.execute(onExpire);
-                } else {
-                    onExpire.run();
+                try {
+                    if (executor != null) {
+                        executor.execute(onExpire);
+                    } else {
+                        onExpire.run();
+                    }
+                } finally {
+                    Task self = taskHolder[0];
+                    if (self != null) {
+                        activeExpireTasks.remove(key, self);
+                    } else {
+                        activeExpireTasks.remove(key);
+                    }
                 }
-                activeExpireTasks.remove(key);
             }, duration);
+            taskHolder[0] = task;
             activeExpireTasks.put(key, task);
         }
     }
