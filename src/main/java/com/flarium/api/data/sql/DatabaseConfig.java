@@ -10,6 +10,32 @@ public record DatabaseConfig(
         String username,
         String password
 ) {
+    public DatabaseConfig {
+        // C39: fail fast at the configuration boundary. databaseName is interpolated
+        // into the MySQL JDBC URL path (DatabaseType), so URL delimiters must be
+        // rejected rather than stripped or encoded.
+        if (type == DatabaseType.MYSQL) {
+            validateDatabaseName(databaseName);
+        }
+    }
+
+    private static void validateDatabaseName(String databaseName) {
+        if (databaseName == null || databaseName.isBlank()) {
+            throw new IllegalArgumentException("Invalid MySQL database name: must not be blank");
+        }
+        if (databaseName.length() > 64) {
+            throw new IllegalArgumentException("Invalid MySQL database name: exceeds 64 characters");
+        }
+        for (int i = 0; i < databaseName.length(); i++) {
+            char c = databaseName.charAt(i);
+            if (c == '?' || c == '&' || c == '=' || c == '#' || c == ';' || c == '/' || c == '\\' || c == '%'
+                    || Character.isWhitespace(c) || Character.isISOControl(c)) {
+                throw new IllegalArgumentException(
+                        "Invalid MySQL database name '" + databaseName + "': URL delimiters and whitespace are not allowed");
+            }
+        }
+    }
+
     public static DatabaseConfig load(ConfigurationSection section) {
         if (section == null) {
             return new DatabaseConfig(DatabaseType.SQLITE, null, 0, null, null, null);
