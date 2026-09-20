@@ -8,14 +8,10 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class ColorUtil {
 
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
-    private static final Pattern HEX_PATTERN = Pattern.compile("&#([0-9a-fA-F]{6})");
-    private static final Pattern LEGACY_PATTERN = Pattern.compile("&([0-9a-fk-orA-FK-OR])");
     private static final Cache<String, Component> FORMAT_CACHE = Caffeine.newBuilder().maximumSize(1000).build();
     private static final Cache<String, String> MINIMESSAGE_CACHE = Caffeine.newBuilder().maximumSize(1000).build();
 
@@ -41,23 +37,70 @@ public class ColorUtil {
     }
 
     private static String computeMiniMessage(String text) {
-        Matcher hexMatcher = HEX_PATTERN.matcher(text);
-        StringBuilder hexBuffer = new StringBuilder();
-        while (hexMatcher.find()) {
-            hexMatcher.appendReplacement(hexBuffer, Matcher.quoteReplacement("<#" + hexMatcher.group(1) + ">"));
+        // C119: single-pass scan. '&&' is a literal '&' escape. A '&' code is only
+        // recognized at the start of the string, after a non-alphanumeric, or chained
+        // directly after another code (e.g. &a&l), so ordinary text like "R&D" survives.
+        StringBuilder out = new StringBuilder(text.length());
+        boolean prevWasCode = false;
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (c == '&' && i + 1 < text.length()) {
+                char next = text.charAt(i + 1);
+                if (next == '&') {
+                    out.append('&');
+                    i += 2;
+                    prevWasCode = false;
+                    continue;
+                }
+                if (next == '#' && isHexColor(text, i + 2)) {
+                    if (isCodeStart(text, i, prevWasCode)) {
+                        out.append("<#").append(text, i + 2, i + 8).append('>');
+                        i += 8;
+                        prevWasCode = true;
+                        continue;
+                    }
+                } else if (isLegacyCode(next)) {
+                    if (isCodeStart(text, i, prevWasCode)) {
+                        out.append(mapLegacyToMiniMessage(Character.toLowerCase(next)));
+                        i += 2;
+                        prevWasCode = true;
+                        continue;
+                    }
+                }
+            }
+            out.append(c);
+            i++;
+            prevWasCode = false;
         }
-        hexMatcher.appendTail(hexBuffer);
-        String hexProcessed = hexBuffer.toString();
+        return out.toString();
+    }
 
-        Matcher legacyMatcher = LEGACY_PATTERN.matcher(hexProcessed);
-        StringBuilder legacyBuffer = new StringBuilder();
-        while (legacyMatcher.find()) {
-            char code = legacyMatcher.group(1).toLowerCase().charAt(0);
-            String replacement = mapLegacyToMiniMessage(code);
-            legacyMatcher.appendReplacement(legacyBuffer, Matcher.quoteReplacement(replacement));
+    private static boolean isCodeStart(String text, int ampIndex, boolean prevWasCode) {
+        if (ampIndex == 0 || prevWasCode) {
+            return true;
         }
-        legacyMatcher.appendTail(legacyBuffer);
-        return legacyBuffer.toString();
+        char prev = text.charAt(ampIndex - 1);
+        return !((prev >= '0' && prev <= '9') || (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z'));
+    }
+
+    private static boolean isLegacyCode(char c) {
+        return (c >= '0' && c <= '9')
+                || (c >= 'a' && c <= 'f') || (c >= 'k' && c <= 'o') || c == 'r'
+                || (c >= 'A' && c <= 'F') || (c >= 'K' && c <= 'O') || c == 'R';
+    }
+
+    private static boolean isHexColor(String text, int start) {
+        if (start + 6 > text.length()) {
+            return false;
+        }
+        for (int j = start; j < start + 6; j++) {
+            char h = text.charAt(j);
+            if (!((h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') || (h >= 'A' && h <= 'F'))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static List<Component> format(List<String> list) {
