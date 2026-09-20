@@ -12,3 +12,6 @@ FlariumAPI_Markdown/
 
 .DS_Store
 Thumbs.db
+
+audit/*.md
+audit/**/*.md
