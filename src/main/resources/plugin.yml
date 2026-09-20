@@ -4,6 +4,7 @@ version: '${version}'
 main: com.flarium.api.FlariumAPI
 api-version: '1.21.4'
 load: POSTWORLD
+folia-supported: true
 
 authors: [Flarium Studios]
 website: https://flarium-studios.com
