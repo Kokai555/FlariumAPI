@@ -19,6 +19,21 @@ public record DatabaseConfig(
         }
     }
 
+    /**
+     * C32: the generated record {@code toString} would print every component,
+     * including the database password. Mask it so diagnostics and logging can
+     * never leak the secret. All other components render exactly as before.
+     */
+    @Override
+    public String toString() {
+        return "DatabaseConfig[type=" + type
+                + ", address=" + address
+                + ", port=" + port
+                + ", databaseName=" + databaseName
+                + ", username=" + username
+                + ", password=****]";
+    }
+
     private static void validateDatabaseName(String databaseName) {
         if (databaseName == null || databaseName.isBlank()) {
             throw new IllegalArgumentException("Invalid MySQL database name: must not be blank");
@@ -50,7 +65,10 @@ public record DatabaseConfig(
         try {
             type = DatabaseType.valueOf(typeStr.toUpperCase());
         } catch (IllegalArgumentException e) {
-            type = DatabaseType.SQLITE;
+            // C33: an explicitly configured but unknown type must fail clearly
+            // instead of silently becoming SQLITE (a different database).
+            // Missing/blank type still defaults to SQLITE for compatibility.
+            throw new IllegalArgumentException("Unknown database type: " + typeStr);
         }
 
         if (type == DatabaseType.SQLITE) {
@@ -59,7 +77,9 @@ public record DatabaseConfig(
 
         ConfigurationSection settings = section.getConfigurationSection("settings");
         if (settings == null) {
-            return new DatabaseConfig(DatabaseType.SQLITE, null, 0, null, null, null);
+            // C33: explicit MYSQL without settings must fail clearly rather than
+            // silently falling back to SQLITE.
+            throw new IllegalArgumentException("Missing 'settings' section for MYSQL database configuration");
         }
 
         return new DatabaseConfig(

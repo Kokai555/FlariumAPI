@@ -41,13 +41,16 @@ public class MessageService<T extends Enum<T> & MessageKey> {
     }
 
     private CompletableFuture<Void> setup(PluginConfig config) {
-        File file = new File(plugin.getDataFolder(), "messages.yml");
-        if (!file.exists()) {
-            plugin.saveResource("messages.yml", false);
-        }
-        FileConfiguration messages = YamlConfiguration.loadConfiguration(file);
-
+        // C34: all file I/O (existence check, resource copy, YAML load) runs
+        // behind the async boundary. Constructor/reload semantics unchanged:
+        // the constructor still joins, reload still returns the future.
         return CompletableFuture.runAsync(() -> {
+            File file = new File(plugin.getDataFolder(), "messages.yml");
+            if (!file.exists()) {
+                plugin.saveResource("messages.yml", false);
+            }
+            FileConfiguration messages = YamlConfiguration.loadConfiguration(file);
+
             EnumMap<T, String> newCache = new EnumMap<>(enumClass);
 
             for (T key : enumClass.getEnumConstants()) {
