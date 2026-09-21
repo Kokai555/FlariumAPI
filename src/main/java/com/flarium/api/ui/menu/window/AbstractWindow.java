@@ -27,7 +27,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
     protected final Player player;
     protected final Gui gui;
     protected Inventory inventory;
-    private Task tickTask;
+    private volatile Task tickTask;
 
     private boolean handlesBottomInventory = false;
     private ItemStack[] playerInventoryBackup = null;
@@ -59,7 +59,7 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (closed) return;
         closed = true;
 
@@ -100,7 +100,10 @@ public abstract class AbstractWindow implements Window, InventoryHolder {
         }
     }
 
-    public void startTicking(Duration period) {
+    public synchronized void startTicking(Duration period) {
+        // C20: never arm a timer on a closed window; close() already ran and
+        // would never cancel it, leaking updates to a dead inventory.
+        if (closed) return;
         if (tickTask != null) tickTask.cancel();
         tickTask = FlariumAPI.getInstance().getScheduler().runForEntityTimer(player, () -> {
             gui.tick();
