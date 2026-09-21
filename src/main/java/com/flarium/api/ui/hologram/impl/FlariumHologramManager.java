@@ -58,6 +58,10 @@ public class FlariumHologramManager implements HologramManager {
             Hologram hologram = new FlariumHologram(plugin, scheduler, pdcManager, hologramId, anchor, interaction);
             holograms.put(hologramId, hologram);
             future.complete(hologram);
+        }).whenComplete((ignored, error) -> {
+            // A scheduling failure no longer throws synchronously; propagate it
+            // so the returned future cannot remain incomplete forever.
+            if (error != null) future.completeExceptionally(error);
         });
 
         return future;

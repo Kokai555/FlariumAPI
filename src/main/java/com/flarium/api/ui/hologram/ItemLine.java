@@ -35,12 +35,11 @@ public class ItemLine extends AbstractHologramLine {
 
     @Override
     public void despawn() {
-        DisplayAdapter displayAdapter = getDisplayAdapter();
-        if (displayAdapter == null) return;
-        for (Player player : getViewers()) {
-            displayAdapter.sendDestroy(player);
-        }
+        DisplayAdapter adapter = getDisplayAdapter();
+        if (adapter == null) return;
         setDisplayAdapter(null);
+        // C6: destroy packets go out on each viewer's own scheduler.
+        dispatchToViewers(player -> adapter.sendDestroy(player));
     }
 
     @Override

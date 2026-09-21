@@ -35,12 +35,14 @@ public class FlariumHologram implements Hologram {
     private final ArmorStand anchor;
     private final Interaction interaction;
     private final List<HologramLine> lines = new CopyOnWriteArrayList<>();
-    private Consumer<Player> clickAction;
+    // C5: written on calling threads, read on entity scheduler tasks.
+    private volatile Consumer<Player> clickAction;
 
-    private RenderMode renderMode = RenderMode.ALL;
+    private volatile RenderMode renderMode = RenderMode.ALL;
     private final Set<UUID> viewers = ConcurrentHashMap.newKeySet();
     private final Set<UUID> shownTo = ConcurrentHashMap.newKeySet();
-    private Location lastSyncedLocation;
+    // C5: always (re)published as a fresh object; the volatile reference is the publication point.
+    private volatile Location lastSyncedLocation;
     private volatile boolean attached;
 
     public FlariumHologram(Plugin plugin, Scheduler scheduler, PDCManager pdcManager, UUID hologramId, ArmorStand anchor, Interaction interaction) {
@@ -102,31 +104,56 @@ public class FlariumHologram implements Hologram {
         scheduler.runForEntity(anchor, () -> {
             for (Player player : Bukkit.getOnlinePlayers()) {
                 boolean shouldSee = shouldSee(player);
+                UUID uuid = player.getUniqueId();
 
-                if (shouldSee && shownTo.add(player.getUniqueId())) {
-                    player.showEntity(plugin, anchor);
-                    player.showEntity(plugin, interaction);
-                    for (HologramLine line : lines) {
-                        if (!(line instanceof AbstractHologramLine) && line.getEntity() != null) {
-                            player.showEntity(plugin, line.getEntity());
+                // C6: bookkeeping stays on the anchor thread, but every player
+                // touch runs on that player's own scheduler (Folia ownership).
+                if (shouldSee && shownTo.add(uuid)) {
+                    scheduler.runForEntity(player, () -> {
+                        try {
+                            showTo(player);
+                        } catch (RuntimeException | Error e) {
+                            shownTo.remove(uuid);
+                            throw e;
                         }
-                        DisplayAdapter displayAdapter = displayAdapterOf(line);
-                        if (displayAdapter != null) displayAdapter.sendSpawn(player, displayAdapter.getLocation());
-                    }
-                } else if (!shouldSee && shownTo.remove(player.getUniqueId())) {
-                    player.hideEntity(plugin, anchor);
-                    player.hideEntity(plugin, interaction);
-                    for (HologramLine line : lines) {
-                        if (!(line instanceof AbstractHologramLine) && line.getEntity() != null) {
-                            player.hideEntity(plugin, line.getEntity());
+                    });
+                } else if (!shouldSee && shownTo.remove(uuid)) {
+                    scheduler.runForEntity(player, () -> {
+                        try {
+                            hideFrom(player);
+                        } catch (RuntimeException | Error e) {
+                            shownTo.add(uuid);
+                            throw e;
                         }
-                        DisplayAdapter displayAdapter = displayAdapterOf(line);
-                        if (displayAdapter != null) displayAdapter.sendDestroy(player);
-                    }
+                    });
                 }
             }
             shownTo.removeIf(uuid -> Bukkit.getPlayer(uuid) == null);
         });
+    }
+
+    private void showTo(Player player) {
+        player.showEntity(plugin, anchor);
+        player.showEntity(plugin, interaction);
+        for (HologramLine line : lines) {
+            if (!(line instanceof AbstractHologramLine) && line.getEntity() != null) {
+                player.showEntity(plugin, line.getEntity());
+            }
+            DisplayAdapter displayAdapter = displayAdapterOf(line);
+            if (displayAdapter != null) displayAdapter.sendSpawn(player, displayAdapter.getLocation());
+        }
+    }
+
+    private void hideFrom(Player player) {
+        player.hideEntity(plugin, anchor);
+        player.hideEntity(plugin, interaction);
+        for (HologramLine line : lines) {
+            if (!(line instanceof AbstractHologramLine) && line.getEntity() != null) {
+                player.hideEntity(plugin, line.getEntity());
+            }
+            DisplayAdapter displayAdapter = displayAdapterOf(line);
+            if (displayAdapter != null) displayAdapter.sendDestroy(player);
+        }
     }
 
     private boolean shouldSee(Player player) {
@@ -164,14 +191,20 @@ public class FlariumHologram implements Hologram {
                     displayAdapter = abstractLine.getDisplayAdapter();
                     if (displayAdapter != null) {
                         displayAdapter.setPosition(lineLoc);
+                        // C6: state stays on the anchor thread; packets go out
+                        // on each viewer's own scheduler.
+                        DisplayAdapter spawned = displayAdapter;
                         for (Player player : shown) {
-                            displayAdapter.sendSpawn(player, lineLoc);
+                            scheduler.runForEntity(player, () -> spawned.sendSpawn(player, lineLoc));
                         }
                     }
                 } else {
                     displayAdapter.setPosition(lineLoc);
+                    // C6: state stays on the anchor thread; packets go out
+                    // on each viewer's own scheduler.
+                    DisplayAdapter moved = displayAdapter;
                     for (Player player : shown) {
-                        displayAdapter.sendTeleport(player, lineLoc);
+                        scheduler.runForEntity(player, () -> moved.sendTeleport(player, lineLoc));
                     }
                 }
             } else if (line.getEntity() == null) {

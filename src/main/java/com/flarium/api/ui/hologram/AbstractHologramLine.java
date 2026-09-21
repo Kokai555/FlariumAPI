@@ -10,14 +10,17 @@ import org.joml.Vector3f;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public abstract class AbstractHologramLine implements HologramLine {
 
     protected final Scheduler scheduler;
 
-    private DisplayAdapter displayAdapter;
-    private Supplier<Collection<Player>> viewerSupplier = Collections::emptyList;
+    // C5: adapter reference published across scheduler threads.
+    private volatile DisplayAdapter displayAdapter;
+    // C5: supplier published across scheduler threads.
+    private volatile Supplier<Collection<Player>> viewerSupplier = Collections::emptyList;
 
     private Vector3f translation = new Vector3f();
     private Vector3f scale = new Vector3f(1, 1, 1);
@@ -49,9 +52,20 @@ public abstract class AbstractHologramLine implements HologramLine {
     }
 
     protected void sendUpdate() {
-        if (displayAdapter == null) return;
+        DisplayAdapter adapter = displayAdapter;
+        if (adapter == null) return;
+        dispatchToViewers(player -> adapter.sendUpdate(player));
+    }
+
+    /**
+     * C6: runs the action on each viewer's own entity scheduler, so packet
+     * dispatch never touches players cross-region. Fire-and-forget; a failed
+     * scheduling completes the discarded future (Scheduler future-lifecycle
+     * contract) instead of aborting the remaining viewers.
+     */
+    protected void dispatchToViewers(Consumer<Player> action) {
         for (Player player : getViewers()) {
-            displayAdapter.sendUpdate(player);
+            scheduler.runForEntity(player, () -> action.accept(player));
         }
     }
 
